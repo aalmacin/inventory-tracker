@@ -1,5 +1,3 @@
-function Reports() {
+export default function Reports() {
     return <div>Reports</div>
 }
-
-export default Reports

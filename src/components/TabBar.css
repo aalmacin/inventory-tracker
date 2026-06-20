@@ -1,0 +1,51 @@
+.tab-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;            /* match the phone-frame width */
+  height: var(--tabbar-h);
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+  padding: 0.3rem 0.5rem calc(var(--safe-bottom) - 18px);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: var(--shadow-up);
+  z-index: 10;
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+  font: 600 0.78rem/1.1 var(--font-sans);
+  color: var(--ink-3);
+  border-radius: var(--r);
+  transition: color 0.12s, background 0.12s;
+}
+
+.tab:active { background: var(--surface-2); }
+
+/* active tab — teal text on a faint teal tint */
+.tab.active {
+  color: var(--accent-text);
+  background: var(--accent-weak);
+}
+
+/* prominent staff "new tracking" — filled teal pill */
+.tab-primary {
+  flex: 0 0 auto;
+  padding: 0 1rem;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-sm);
+}
+
+.tab-primary:active { background: var(--accent-press); }
+.tab-primary.active { color: var(--accent-ink); background: var(--accent-press); }

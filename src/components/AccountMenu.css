@@ -1,0 +1,27 @@
+.account-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.account-menu > span {
+  font: 600 0.85rem/1 var(--font-sans);
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-menu > button {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.7rem;
+  font: 600 0.8rem/1 var(--font-sans);
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.account-menu > button:active { background: var(--surface-2); }

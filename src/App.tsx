@@ -1,6 +1,16 @@
 import './App.css'
 import { app } from "./lib/firebase"
 
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      {index: true, element: <Home />},
+    ]
+  }
+])
+
 function App() {
   console.log('Firebase project:', app.options.projectId);
 
