@@ -116,7 +116,7 @@ function TrackingNewRoute() {
     <Tracking
       mode="new" categories={activeCategories(s)}
       recentInv={makeRecent(s.trackings, 'inv')} recentOrd={makeRecent(s.trackings, 'ord')}
-      onSave={(out) => { const id = s.addTracking({ lines: fromComponentLines(out.lines), note: out.note, dateMs: out.dateMs }); nav(`/track/${id}`); }}
+      onSave={(out) => { const id = s.addTracking({ lines: fromComponentLines(out.lines), note: out.note, dateMs: out.dateMs }); nav(`/track/${id}`, { replace: true }); }}
       onCancel={() => nav('/home')}
     />
   );
@@ -131,8 +131,8 @@ function TrackingEditRoute() {
       mode="edit" categories={activeCategories(s)}
       initialLines={toComponentLines(existing.lines)} initialNote={existing.note} initialDateMs={existing.date}
       recentInv={makeRecent(s.trackings, 'inv')} recentOrd={makeRecent(s.trackings, 'ord')}
-      onSave={(out) => { s.updateTracking(id, { lines: fromComponentLines(out.lines), note: out.note, dateMs: out.dateMs }); nav(`/track/${id}`); }}
-      onCancel={() => nav(`/track/${id}`)}
+      onSave={(out) => { s.updateTracking(id, { lines: fromComponentLines(out.lines), note: out.note, dateMs: out.dateMs }); nav(`/track/${id}`, { replace: true }); }}
+      onCancel={() => nav(`/track/${id}`, { replace: true })}
     />
   );
 }
@@ -154,6 +154,7 @@ function TrackingDetailRoute() {
       onSetDelivery={(itemId, dlv: DeliveryCheck | null) => s.setDelivery(id, itemId, dlv)}
       onEdit={() => nav(`/track/${id}/edit`)}
       onDelete={() => { s.deleteTracking(id); nav('/home'); }}
+      onBack={() => nav(-1)}
     />
   );
 }
@@ -194,14 +195,19 @@ function TeamRoute() {
   );
 }
 
+// Single source of truth for where a role lands after login.
+const landingFor = (role: string | undefined) => (role === 'admin' ? '/restaurants' : '/home');
+
 function LoginRoute() {
-  const { signIn } = useDemo();
-  return <Login onPick={(p) => signIn(p.role)} />;
+  const { signIn } = useDemo(); const nav = useNavigate();
+  // Sign-in renders over whatever URL was active (the login gate is inline, not a
+  // route), so force the role landing — otherwise a stale /track/:id reopens.
+  return <Login onPick={(p) => { signIn(p.role); nav(landingFor(p.role), { replace: true }); }} />;
 }
 
 function RoleLanding() {
   const { user } = useDemo();
-  return <Navigate to={user?.role === 'admin' ? '/restaurants' : '/home'} replace />;
+  return <Navigate to={landingFor(user?.role)} replace />;
 }
 
 // ── layout: login gate + shell + role tab bar ────────────────
