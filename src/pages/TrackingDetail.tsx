@@ -173,12 +173,13 @@ function PrintSheet({ t, onlyOrder, onClose }: { t: TrackingDetailVM; onlyOrder:
 }
 
 export function TrackingDetail({
-  tracking, onSetDelivery, onEdit, onDelete,
+  tracking, onSetDelivery, onEdit, onDelete, onBack,
 }: {
   tracking: TrackingDetailVM;
   onSetDelivery: (itemId: string, dlv: DeliveryCheck | null) => void;
   onEdit: () => void;
   onDelete: () => void;
+  onBack: () => void;
 }) {
   const t = tracking;
   const [filter, setFilter] = useState<'all' | 'order' | 'check'>('order');
@@ -207,7 +208,7 @@ export function TrackingDetail({
 
   return (
     <div className="it-app screen">
-      <FlowHeader title={fmtDate(t.dateMs)} sub="Inventory tracking" onBack={onEdit /* container can route back */}
+      <FlowHeader title={fmtDate(t.dateMs)} sub="Inventory tracking" onBack={onBack}
         trailing={<button className="btn btn--secondary btn--sm" onClick={onEdit}><Icon name="edit" size={15} /> Edit</button>} />
 
       <div className="scroll">
