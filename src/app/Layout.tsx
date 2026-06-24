@@ -6,10 +6,8 @@
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AppFrame, TabBar } from '../ui/shell';
 import { useAppSelector } from '../lib/hooks';
-import { useFirestoreSync } from './useFirestoreSync';
 
 export function Layout() {
-  useFirestoreSync(); // start the Firestore listeners for the signed-in user
   const role = useAppSelector((s) => s.auth.role);
   const loc = useLocation();
   const nav = useNavigate();
