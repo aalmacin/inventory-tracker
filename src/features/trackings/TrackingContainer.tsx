@@ -42,7 +42,10 @@ export function TrackingContainer() {
         .map((c) => ({
           id: c.id,
           label: c.label,
-          items: items.filter((i) => i.category === c.id && !i.disabled).map((i) => ({ id: i.id, name: i.name, unit: i.unit })),
+          items: items
+            .filter((i) => i.category === c.id && !i.disabled)
+            .sort((a, b) => a.order - b.order)
+            .map((i) => ({ id: i.id, name: i.name, unit: i.unit })),
         }))
         .filter((c) => c.items.length),
     [cats, items],

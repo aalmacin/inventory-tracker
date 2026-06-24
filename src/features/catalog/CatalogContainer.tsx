@@ -22,7 +22,10 @@ export function CatalogContainer() {
         .map((c) => ({
           id: c.id,
           label: c.label,
-          items: items.filter((i) => i.category === c.id).map((i) => ({ id: i.id, name: i.name, unit: i.unit, disabled: i.disabled })),
+          items: items
+            .filter((i) => i.category === c.id)
+            .sort((a, b) => a.order - b.order)
+            .map((i) => ({ id: i.id, name: i.name, unit: i.unit, disabled: i.disabled })),
         })),
     [cats, items],
   );
@@ -48,9 +51,15 @@ export function CatalogContainer() {
       onRenameCategory={(id, label) => fs.renameCategory(rid, id, label)}
       onDeleteCategory={(id) => fs.deleteCategory(rid, id)}
       onMoveCategory={(id, dir) => fs.moveCategory(rid, id, dir)}
-      onAddItem={(input) => fs.addItem(rid, input)}
-      onUpdateItem={(id, patch) => fs.updateItem(rid, id, patch)}
+      onAddItem={(input) => fs.addItem(rid, { ...input, order: items.filter((i) => i.category === input.categoryId).length })}
+      onUpdateItem={(id, patch) => {
+        const prev = items.find((i) => i.id === id);
+        const movedCategory = prev && prev.category !== patch.category;
+        fs.updateItem(rid, id, movedCategory ? { ...patch, order: items.filter((i) => i.category === patch.category).length } : patch);
+      }}
       onDeleteItem={(id) => fs.deleteItem(rid, id)}
+      onMoveItem={(id, dir) => fs.moveItem(rid, id, dir)}
+      onReorderItems={(_categoryId, orderedIds) => fs.reorderItems(rid, orderedIds)}
       onToggleItem={(id, active) => fs.setItemDisabled(rid, id, !active)}
     />
   );

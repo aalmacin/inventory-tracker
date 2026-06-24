@@ -6,7 +6,7 @@
 // Shapes written match the app's types:
 //   restaurants/{rid}                    { name, city, initials, tint }
 //   restaurants/{rid}/categories/{id}    { label, order }
-//   restaurants/{rid}/items/{id}         { name, category, unit, disabled }
+//   restaurants/{rid}/items/{id}         { name, category, unit, disabled, order }
 //   restaurants/{rid}/trackings/{id}     { date, by, note, lines }
 //   members/{id}                         { name, email, role, status, restaurantIds }
 import { readFileSync } from 'node:fs';
@@ -143,7 +143,7 @@ function buildItems(rid, cats, catalog) {
   const out = [];
   cats.forEach((cat) => {
     (catalog[cat.id] || []).forEach(([name, unit], i) => {
-      out.push({ id: `itm-${rid}-${cat.id}-${i}`, name, category: cat.id, unit: normalizeUnit(unit), disabled: false });
+      out.push({ id: `itm-${rid}-${cat.id}-${i}`, name, category: cat.id, unit: normalizeUnit(unit), disabled: false, order: i });
     });
   });
   return out;

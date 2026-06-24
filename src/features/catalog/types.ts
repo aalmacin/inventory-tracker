@@ -12,4 +12,5 @@ export interface Item {
   category: string; // category id
   unit: Unit;
   disabled: boolean;
+  order: number; // sort position within its category
 }

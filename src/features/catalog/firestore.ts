@@ -5,7 +5,7 @@
 // fill the bodies with addDoc/updateDoc/writeBatch/onSnapshot.
 import type { AppDispatch } from '../../app/store';
 import type { Category, Item, Unit } from './types';
-import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, orderBy, query, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { categoriesReceived, itemsReceived } from './catalogSlice';
 
@@ -63,21 +63,48 @@ export const moveCategory = async (rid: string, id: string, dir: -1 | 1): Promis
   await batch.commit();
 }
 
-export const addItem = async (rid: string, input: { categoryId: string; name: string; unit: Unit }): Promise<void> => {
+export const addItem = async (rid: string, input: { categoryId: string; name: string; unit: Unit; order: number }): Promise<void> => {
   await addDoc(itemsCol(rid), {
     name: input.name,
     category: input.categoryId,
     unit: input.unit,
     disabled: false,
+    order: input.order,
   })
 }
 
+// `order` is included only when the item moves to a different category, so it
+// lands at the end of the target category instead of colliding with an existing position.
 export const updateItem = (
   rid: string,
   id: string,
-  patch: { name: string; category: string; unit: Unit; disabled: boolean },
+  patch: { name: string; category: string; unit: Unit; disabled: boolean; order?: number },
 ): Promise<void> => updateDoc(doc(itemsCol(rid), id), patch);
 
 export const deleteItem = (rid: string, id: string): Promise<void> => deleteDoc(doc(itemsCol(rid), id));
+
+// persist an explicit ordering: write order = index for each id (drag-and-drop result).
+// ids must all belong to the same category — the caller supplies that category's items in their new order.
+export const reorderItems = (rid: string, orderedIds: string[]): Promise<void> => {
+  const batch = writeBatch(db);
+  orderedIds.forEach((id, order) => batch.update(doc(itemsCol(rid), id), { order }));
+  return batch.commit();
+}
+
+// swap order with the neighbour in `dir`, scoped to the item's own category (writeBatch of two updates)
+export const moveItem = async (rid: string, id: string, dir: -1 | 1): Promise<void> => {
+  const self = await getDoc(doc(itemsCol(rid), id));
+  const category = (self.data() as Item | undefined)?.category;
+  if (!category) return;
+  const snap = await getDocs(query(itemsCol(rid), where('category', '==', category), orderBy('order')));
+  const siblings = snap.docs;
+  const i = siblings.findIndex((d) => d.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= siblings.length) return;
+  const batch = writeBatch(db);
+  batch.update(siblings[i].ref, { order: siblings[j].data().order });
+  batch.update(siblings[j].ref, { order: siblings[i].data().order });
+  await batch.commit();
+}
 
 export const setItemDisabled = (rid: string, id: string, disabled: boolean): Promise<void> => updateDoc(doc(itemsCol(rid), id), { disabled });

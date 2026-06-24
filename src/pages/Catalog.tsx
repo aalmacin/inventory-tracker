@@ -10,6 +10,16 @@
 //     writeBatch/deleteDoc) dispatched through your slices.
 // See guide step "Categories & Items" for the Firestore side.
 import { useState } from 'react';
+import {
+  DndContext, PointerSensor, KeyboardSensor, useSensor, useSensors,
+  closestCenter, type DragEndEvent,
+} from '@dnd-kit/core';
+import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers';
+import {
+  SortableContext, sortableKeyboardCoordinates, useSortable, arrayMove,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Icon } from '../ui/Icon';
 import { Button, Switch, SheetModal } from '../ui/primitives';
 
@@ -42,6 +52,8 @@ export interface CatalogProps {
     patch: { name: string; category: string; unit: Unit; disabled: boolean },
   ) => void;
   onDeleteItem: (id: string) => void;
+  onMoveItem: (id: string, dir: -1 | 1) => void;
+  onReorderItems: (categoryId: string, orderedIds: string[]) => void;
   onToggleItem: (id: string, active: boolean) => void;
 }
 
@@ -193,9 +205,57 @@ function ItemSheet({
   );
 }
 
+// ── one draggable item row ───────────────────────────────────
+// Drag is initiated only from the grip handle, so tapping the row still opens the
+// edit sheet and the up/down arrows keep working as a non-drag alternative.
+function SortableItemRow({
+  item, idx, total, onEdit, onMove, onToggle,
+}: {
+  item: ItemVM;
+  idx: number;
+  total: number;
+  onEdit: () => void;
+  onMove: (dir: -1 | 1) => void;
+  onToggle: (id: string, active: boolean) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    borderTop: '1px solid var(--border)',
+    background: isDragging ? 'var(--surface-2, var(--surface))' : undefined,
+    opacity: isDragging ? 0.85 : 1,
+    zIndex: isDragging ? 1 : undefined,
+    position: 'relative' as const,
+  };
+  return (
+    <div ref={setNodeRef} className={`row ${item.disabled ? 'row--disabled' : ''}`} style={style}>
+      <button
+        className="icon-btn"
+        {...attributes}
+        {...listeners}
+        aria-label={`drag ${item.name} to reorder`}
+        style={{ width: 28, height: 30, cursor: 'grab', touchAction: 'none', color: 'var(--ink-3)' }}
+      >
+        <Icon name="grip" size={16} />
+      </button>
+      <button className="row__body" style={{ background: 'none', textAlign: 'left', padding: 0 }} onClick={onEdit}>
+        <div className="row__title" style={{ fontSize: 14 }}>
+          <span className="item-name">{item.name}</span>
+          <span className="mono muted-2" style={{ fontSize: 11, textTransform: 'capitalize' }}>{item.unit}</span>
+          {item.disabled && <span className="badge badge--neutral">Hidden</span>}
+        </div>
+      </button>
+      <button className="icon-btn" disabled={idx === 0} onClick={() => onMove(-1)} aria-label={`move ${item.name} up`} style={{ width: 30, height: 30, opacity: idx === 0 ? 0.3 : 1 }}><Icon name="arrowUp" size={15} /></button>
+      <button className="icon-btn" disabled={idx === total - 1} onClick={() => onMove(1)} aria-label={`move ${item.name} down`} style={{ width: 30, height: 30, opacity: idx === total - 1 ? 0.3 : 1 }}><Icon name="arrowDown" size={15} /></button>
+      <Switch on={!item.disabled} onChange={(v) => onToggle(item.id, v)} aria-label={`show ${item.name} in new trackings`} />
+    </div>
+  );
+}
+
 // ── one category card ────────────────────────────────────────
 function CategoryCard({
-  cat, idx, total, open, onToggle, onEdit, onDelete, onMove, onAddItem, onEditItem, onToggleItem,
+  cat, idx, total, open, onToggle, onEdit, onDelete, onMove, onAddItem, onEditItem, onMoveItem, onReorderItems, onToggleItem,
 }: {
   cat: CategoryVM;
   idx: number;
@@ -207,9 +267,24 @@ function CategoryCard({
   onMove: (dir: -1 | 1) => void;
   onAddItem: () => void;
   onEditItem: (item: ItemVM) => void;
+  onMoveItem: (id: string, dir: -1 | 1) => void;
+  onReorderItems: (categoryId: string, orderedIds: string[]) => void;
   onToggleItem: (id: string, active: boolean) => void;
 }) {
   const disabledN = cat.items.filter((i) => i.disabled).length;
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const ids = cat.items.map((i) => i.id);
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from < 0 || to < 0) return;
+    onReorderItems(cat.id, arrayMove(ids, from, to));
+  };
   return (
     <div className="card card--flush">
       <div className="trk-cat" style={{ gap: 6 }}>
@@ -237,18 +312,28 @@ function CategoryCard({
         <>
           {cat.items.length === 0 ? (
             <div style={{ padding: 14, textAlign: 'center', color: 'var(--ink-3)', fontSize: 13, borderTop: '1px solid var(--border)' }}>No items yet.</div>
-          ) : cat.items.map((i) => (
-            <div key={i.id} className={`row ${i.disabled ? 'row--disabled' : ''}`} style={{ borderTop: '1px solid var(--border)' }}>
-              <button className="row__body" style={{ background: 'none', textAlign: 'left', padding: 0 }} onClick={() => onEditItem(i)}>
-                <div className="row__title" style={{ fontSize: 14 }}>
-                  <span className="item-name">{i.name}</span>
-                  <span className="mono muted-2" style={{ fontSize: 11, textTransform: 'capitalize' }}>{i.unit}</span>
-                  {i.disabled && <span className="badge badge--neutral">Hidden</span>}
-                </div>
-              </button>
-              <Switch on={!i.disabled} onChange={(v) => onToggleItem(i.id, v)} aria-label={`show ${i.name} in new trackings`} />
-            </div>
-          ))}
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={cat.items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                {cat.items.map((i, iIdx) => (
+                  <SortableItemRow
+                    key={i.id}
+                    item={i}
+                    idx={iIdx}
+                    total={cat.items.length}
+                    onEdit={() => onEditItem(i)}
+                    onMove={(dir) => onMoveItem(i.id, dir)}
+                    onToggle={onToggleItem}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
+          )}
           <button className="row" style={{ borderTop: '1px solid var(--border)', color: 'var(--accent-text)' }} onClick={onAddItem}>
             <span style={{ width: 20, display: 'flex', justifyContent: 'center' }}><Icon name="plus" size={17} /></span>
             <span className="fw-6 t-sm">Add item</span>
@@ -307,6 +392,8 @@ export function Catalog(props: CatalogProps) {
               onMove={(dir) => props.onMoveCategory(c.id, dir)}
               onAddItem={() => setItemSheet({ item: null, categoryId: c.id })}
               onEditItem={(i) => setItemSheet({ item: i, categoryId: c.id })}
+              onMoveItem={props.onMoveItem}
+              onReorderItems={props.onReorderItems}
               onToggleItem={props.onToggleItem}
             />
           ))}

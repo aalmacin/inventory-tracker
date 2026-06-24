@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="160" viewBox="0 0 560 160" fill="none">
+  <rect x="16" y="32" width="96" height="96" rx="24" fill="#177877"/>
+  <g transform="translate(12.8 28.8) scale(0.2)" fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M256 106 L386 181 L386 331 L256 406 L126 331 L126 181 Z"/>
+    <path d="M126 181 L256 256 L386 181"/>
+    <path d="M256 256 L256 406"/>
+  </g>
+  <text x="132" y="86" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="40" font-weight="700" letter-spacing="-1.4" fill="#1a1a18">Inventory Tracker</text>
+  <text x="134" y="112" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="15" fill="#56564f">Stockroom counts &amp; orders, by restaurant</text>
+</svg>
