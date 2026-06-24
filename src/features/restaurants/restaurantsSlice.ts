@@ -20,8 +20,12 @@ const restaurantsSlice = createSlice({
     currentRestaurantSet: (state, action: PayloadAction<string>) => {
       state.currentId = action.payload;
     },
+    currentRestaurantCleared: (state) => {
+      state.currentId = null;
+    },
   },
 });
 
-export const { restaurantsReceived, currentRestaurantSet } = restaurantsSlice.actions;
+export const { restaurantsReceived, currentRestaurantSet, currentRestaurantCleared } =
+  restaurantsSlice.actions;
 export default restaurantsSlice.reducer;

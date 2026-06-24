@@ -3,6 +3,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { useAppDispatch } from '../../lib/hooks';
 import { authChanged } from './authSlice';
+import { currentRestaurantCleared } from '../restaurants/restaurantsSlice';
 import type { Role } from '../../pages/Login';
 
 // Projects Firebase Auth (+ custom claims) into the auth slice. role and
@@ -15,6 +16,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       onAuthStateChanged(auth, async (u) => {
         if (!u) {
           dispatch(authChanged({ user: null, role: null, restaurantIds: [], status: 'out' }));
+          dispatch(currentRestaurantCleared()); // don't let a selection leak to the next user
           return;
         }
         const token = await u.getIdTokenResult();
