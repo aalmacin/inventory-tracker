@@ -1,22 +1,25 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { useAppSelector } from '../../lib/hooks';
-import { Login, type Persona } from '../../pages/Login';
+import { Login } from '../../pages/Login';
 
-// The role picker signs into a seeded demo account per persona. The accounts
-// (and their role/restaurantIds claims) are part of your Firebase Auth setup —
-// seed them in the Auth emulator. Swap this for a real email/password form later.
-const DEMO_PASSWORD = 'kitchen';
-
+// Email/password sign-in against Firebase Auth. To try a role in dev, sign in
+// with a seeded account (`yarn seed`) — e.g. admin@riverside.co / kitchen. The
+// demo-account quick-fill is shown only in development; production gets the bare
+// login form.
 export function LoginContainer() {
+  const nav = useNavigate();
   const status = useAppSelector((s) => s.auth.status);
   if (status === 'in') return <Navigate to="/" replace />;
 
-  const signIn = (p: Persona) =>
-    signInWithEmailAndPassword(auth, `${p.key}@riverside.co`, DEMO_PASSWORD).catch(() => {
-      alert('Sign-in failed — seed this account in the Auth emulator with its role claim.');
-    });
+  const signIn = async (email: string, password: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch {
+      throw new Error('Wrong email or password.');
+    }
+  };
 
-  return <Login onPick={signIn} />;
+  return <Login onSubmit={signIn} onRegister={() => nav('/register')} showDemo={import.meta.env.DEV} />;
 }

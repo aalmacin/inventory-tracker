@@ -224,6 +224,8 @@ export function Team({
             <button className={`seg__opt ${scope === 'all' ? 'seg__opt--active' : ''}`} onClick={() => setScope('all')}>All restaurants</button>
           </div>
 
+          <Button variant="primary" block icon="userPlus" onClick={() => setSheet({ member: null })}>Invite a teammate</Button>
+
           {scope === 'current' && currentRestaurant && (
             <div className="t-sm muted" style={{ padding: '0 2px', lineHeight: 1.5 }}>
               People with access to <span className="fw-6" style={{ color: 'var(--ink)' }}>{currentRestaurant.name}</span>.

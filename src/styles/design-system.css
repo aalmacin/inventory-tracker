@@ -202,6 +202,9 @@ textarea.input { height: auto; min-height: 72px; padding: 11px 13px; line-height
 
 /* app shell */
 .screen { display: flex; flex-direction: column; background: var(--bg); min-height: 100%; }
+/* inside the shell frame, a screen fills the content area (definite height) so its
+   own .scroll scrolls and the tab bar stays pinned, instead of the page overflowing */
+.app-content > .screen { height: 100%; min-height: 0; }
 .appbar { flex-shrink: 0; padding: 14px 16px 12px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .appbar--plain { background: var(--bg); border-bottom-color: transparent; }
 .appbar__title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }

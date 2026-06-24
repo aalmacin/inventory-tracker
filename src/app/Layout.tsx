@@ -3,7 +3,7 @@
 // active screen's container. Each screen's container builds its own AppHeader
 // (with the RestaurantSwitcher + AccountMenu) — see steps 07–11.
 // Routing glue — generated for you. Adjust the hooks import to your typed hooks.
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AppFrame, TabBar } from '../ui/shell';
 import { useAppSelector } from '../lib/hooks';
 import { useFirestoreSync } from './useFirestoreSync';
@@ -13,7 +13,9 @@ export function Layout() {
   const role = useAppSelector((s) => s.auth.role);
   const loc = useLocation();
   const nav = useNavigate();
-  if (!role) return null; // RequireAuth guarantees a signed-in user; this narrows role
+  // Signed in but no role yet (e.g. just registered) → the pending-access screen,
+  // which lives outside this shell. (Also narrows role for the JSX below.)
+  if (!role) return <Navigate to="/pending" replace />;
 
   const seg = loc.pathname.split('/')[1] || (role === 'admin' ? 'restaurants' : 'home');
   const isFlow = loc.pathname.startsWith('/track'); // tracking flow runs full-screen

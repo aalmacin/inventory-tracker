@@ -190,8 +190,8 @@ export function TabBar({
 // ── App frame (phone-style column: content fills, tab bar pinned) ──
 export function AppFrame({ children, tabBar }: { children: ReactNode; tabBar?: ReactNode }) {
   return (
-    <div className="it-app" style={{ height: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>{children}</div>
+    <div className="it-app" style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="app-content" style={{ flex: 1, minHeight: 0, position: 'relative' }}>{children}</div>
       {tabBar}
     </div>
   );

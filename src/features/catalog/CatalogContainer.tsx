@@ -1,14 +1,19 @@
 import { useMemo } from 'react';
 import { Catalog } from '../../pages/Catalog';
-import { useAppSelector } from '../../lib/hooks';
-import { selectCurrentRestaurant } from '../restaurants/selectors';
+import { RestaurantSelect } from '../../pages/RestaurantSelect';
+import { useAppDispatch, useAppSelector } from '../../lib/hooks';
+import { selectCurrentRestaurant, selectMyRestaurants } from '../restaurants/selectors';
+import { currentRestaurantSet } from '../restaurants/restaurantsSlice';
 import * as fs from './firestore';
 
 export function CatalogContainer() {
+  const dispatch = useAppDispatch();
   const rid = useAppSelector((s) => s.restaurants.currentId);
   const cats = useAppSelector((s) => s.catalog.categories);
   const items = useAppSelector((s) => s.catalog.items);
   const current = useAppSelector(selectCurrentRestaurant);
+  const mine = useAppSelector(selectMyRestaurants);
+  const userName = useAppSelector((s) => s.auth.user?.name || undefined);
 
   const categories = useMemo(
     () =>
@@ -22,7 +27,18 @@ export function CatalogContainer() {
     [cats, items],
   );
 
-  if (!rid) return null;
+  // No restaurant chosen yet → show the same picker the login flow uses, in place,
+  // so the admin can pick from the Catalog tab without leaving it. Selecting sets
+  // currentId; this container then re-renders into the catalog for that restaurant.
+  if (!rid) {
+    return (
+      <RestaurantSelect
+        restaurants={mine.map((r) => ({ id: r.id, name: r.name, city: r.city, initials: r.initials, tint: r.tint }))}
+        userName={userName}
+        onSelect={(id) => dispatch(currentRestaurantSet(id))}
+      />
+    );
+  }
 
   return (
     <Catalog

@@ -4,49 +4,80 @@
 // write helpers below are called by CatalogContainer. Signatures are fixed —
 // fill the bodies with addDoc/updateDoc/writeBatch/onSnapshot.
 import type { AppDispatch } from '../../app/store';
-import type { Unit } from './types';
-// import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
-// import { db } from '../../lib/firebase';
-// import { categoriesReceived, itemsReceived } from './catalogSlice';
+import type { Category, Item, Unit } from './types';
+import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { categoriesReceived, itemsReceived } from './catalogSlice';
 
-const todo = (name: string): never => {
-  throw new Error(`TODO: implement catalog.${name} with Firestore`);
-};
+const categoriesCol = (rid: string) => collection(db, 'restaurants', rid, 'categories');
+const itemsCol = (rid: string) => collection(db, 'restaurants', rid, 'items');
 
 // Subscribe to this restaurant's categories + items; returns an unsubscribe.
 export function subscribeCatalog(rid: string, dispatch: AppDispatch): () => void {
-  // TODO: onSnapshot(query(categoriesCol(rid), orderBy('order'))) -> dispatch(categoriesReceived(...))
-  // TODO: onSnapshot(itemsCol(rid)) -> dispatch(itemsReceived(...))
-  void rid;
-  void dispatch;
-  return () => {};
+  const unsubCats = onSnapshot(
+    query(categoriesCol(rid), orderBy('order')),
+    snap => {
+      const cats:Category[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<Category, 'id'>) }));
+      dispatch(categoriesReceived(cats));
+    }
+  )
+  const unsubItems = onSnapshot(
+    itemsCol(rid),
+    snap => {
+      const items:Item[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<Item, 'id'>) }));
+      dispatch(itemsReceived(items));
+    }
+  )
+  return () => {
+    unsubCats();
+    unsubItems();
+  };
 }
 
-export const addCategory = (rid: string, label: string, order: number): Promise<void> =>
-  (void rid, void label, void order, todo('addCategory'));
+export const addCategory = async (rid: string, label: string, order: number): Promise<void> => {
+  await addDoc(categoriesCol(rid), { label, order });
+}
 
-export const renameCategory = (rid: string, id: string, label: string): Promise<void> =>
-  (void rid, void id, void label, todo('renameCategory'));
+export const renameCategory = (rid: string, id: string, label: string): Promise<void> => 
+  updateDoc(doc(categoriesCol(rid), id), { label });
 
 // delete the category AND its items in one writeBatch
-export const deleteCategory = (rid: string, id: string): Promise<void> =>
-  (void rid, void id, todo('deleteCategory'));
+export const deleteCategory = async (rid: string, id: string): Promise<void> => {
+  const batch = writeBatch(db);
+  batch.delete(doc(categoriesCol(rid), id));
+  const itemsSnap = await getDocs(query(itemsCol(rid), where('category', '==', id)));
+  itemsSnap.forEach(d => batch.delete(d.ref));
+  return batch.commit();
+}
 
 // swap order with the neighbour in `dir` (writeBatch of two updates)
-export const moveCategory = (rid: string, id: string, dir: -1 | 1): Promise<void> =>
-  (void rid, void id, void dir, todo('moveCategory'));
+export const moveCategory = async (rid: string, id: string, dir: -1 | 1): Promise<void> => {
+  const snap = await getDocs(query(categoriesCol(rid), orderBy('order')));
+  const cats = snap.docs
+  const i = cats.findIndex(d => d.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= cats.length) return;
+  const batch = writeBatch(db);
+  batch.update(cats[i].ref, { order: cats[j].data().order });
+  batch.update(cats[j].ref, { order: cats[i].data().order });
+  await batch.commit();
+}
 
-export const addItem = (rid: string, input: { categoryId: string; name: string; unit: Unit }): Promise<void> =>
-  (void rid, void input, todo('addItem'));
+export const addItem = async (rid: string, input: { categoryId: string; name: string; unit: Unit }): Promise<void> => {
+  await addDoc(itemsCol(rid), {
+    name: input.name,
+    category: input.categoryId,
+    unit: input.unit,
+    disabled: false,
+  })
+}
 
 export const updateItem = (
   rid: string,
   id: string,
   patch: { name: string; category: string; unit: Unit; disabled: boolean },
-): Promise<void> => (void rid, void id, void patch, todo('updateItem'));
+): Promise<void> => updateDoc(doc(itemsCol(rid), id), patch);
 
-export const deleteItem = (rid: string, id: string): Promise<void> =>
-  (void rid, void id, todo('deleteItem'));
+export const deleteItem = (rid: string, id: string): Promise<void> => deleteDoc(doc(itemsCol(rid), id));
 
-export const setItemDisabled = (rid: string, id: string, disabled: boolean): Promise<void> =>
-  (void rid, void id, void disabled, todo('setItemDisabled'));
+export const setItemDisabled = (rid: string, id: string, disabled: boolean): Promise<void> => updateDoc(doc(itemsCol(rid), id), { disabled });
