@@ -4,7 +4,7 @@
 // THE SEAM: the container reads the current restaurant's trackings from Redux
 // (Firestore), computes each row's delivery status (none/pending/done) and
 // passes them as TrackingRowVM[]. Search + pagination are view-local here.
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Icon } from '../ui/Icon';
 import { Button, Empty } from '../ui/primitives';
 
@@ -66,12 +66,15 @@ export function Home({
   const [page, setPage] = useState(0);
   const q = query.trim().toLowerCase();
 
+  const updateQuery = (newQuery: string) => {
+    setQuery(newQuery);
+    setPage(0);
+  };
+
   const filtered = useMemo(() => {
     if (!q) return trackings;
     return trackings.filter((t) => `${fmtDate(t.date)} ${t.note}`.toLowerCase().includes(q));
   }, [trackings, q]);
-
-  useEffect(() => { setPage(0); }, [q]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
@@ -101,15 +104,15 @@ export function Home({
             {trackings.length > 0 && (
               <label className="search" style={{ marginBottom: 9 }}>
                 <span style={{ color: 'var(--ink-3)', display: 'flex' }}><Icon name="search" size={18} /></span>
-                <input value={query} placeholder="Search by date or note" onChange={(e) => setQuery(e.target.value)} />
-                {query && <button className="icon-btn" style={{ width: 26, height: 26 }} onClick={() => setQuery('')} aria-label="clear search"><Icon name="x" size={15} /></button>}
+                <input value={query} placeholder="Search by date or note" onChange={(e) => updateQuery(e.target.value)} />
+                {query && <button className="icon-btn" style={{ width: 26, height: 26 }} onClick={() => updateQuery('')} aria-label="clear search"><Icon name="x" size={15} /></button>}
               </label>
             )}
 
             {trackings.length === 0 ? (
               <div className="card"><Empty icon="history" title="No trackings yet" body="Tap “Add inventory tracking” to record your first count." action={<Button variant="primary" icon="plus" onClick={onNewTracking}>Add tracking</Button>} /></div>
             ) : filtered.length === 0 ? (
-              <div className="card"><Empty icon="search" title="No matches" body={`Nothing matches “${query}”.`} action={<Button variant="secondary" onClick={() => setQuery('')}>Clear search</Button>} /></div>
+              <div className="card"><Empty icon="search" title="No matches" body={`Nothing matches “${query}”.`} action={<Button variant="secondary" onClick={() => updateQuery('')}>Clear search</Button>} /></div>
             ) : (
               <>
                 <div className="card card--flush">

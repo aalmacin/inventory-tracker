@@ -5,7 +5,7 @@
 // THE SEAM: the container passes the current restaurant's active catalog
 // (categories + items) and trackings (with lines) from Redux/Firestore, plus
 // onOpenTracking. All filtering/aggregation here is view-model computation.
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Icon } from '../ui/Icon';
 import { Button, Empty } from '../ui/primitives';
 
@@ -63,14 +63,25 @@ export function Reports({
   const [excluded, setExcluded] = useState<Set<string>>(() => new Set());
   const [active, setActive] = useState<string | null>(null);
 
-  useEffect(() => { if (!catGroups.some((c) => c.id === catId)) setCatId(defaultCat); }, [catGroups, catId, defaultCat]);
-  useEffect(() => { setExcluded(new Set()); setActive(null); }, [catId]);
+  let currentCatId = catId;
+  if (!catGroups.some((c) => c.id === catId)) {
+    currentCatId = defaultCat;
+    setCatId(defaultCat);
+  }
+
+  const [prevCatId, setPrevCatId] = useState<string | null>(defaultCat);
+  if (currentCatId !== prevCatId) {
+    setExcluded(new Set());
+    setActive(null);
+    setPrevCatId(currentCatId);
+  }
 
   const m = METRIC[metric];
-  const group = catGroups.find((c) => c.id === catId);
+  const group = catGroups.find((c) => c.id === currentCatId);
 
+  const [now] = useState(() => Date.now());
   const rangeDays = RANGES.find((r) => r.id === range)!.days;
-  const cutoff = Date.now() - rangeDays * 86400000;
+  const cutoff = now - rangeDays * 86400000;
   const sessions = useMemo(() => trackings.filter((t) => t.dateMs >= cutoff).sort((a, b) => b.dateMs - a.dateMs), [trackings, cutoff]);
 
   const pool = useMemo(() => {
@@ -111,7 +122,16 @@ export function Reports({
   const activeMeta = active ? itemMeta[active] : null;
   const allOn = excluded.size === 0;
 
-  const toggleInclude = (id: string) => setExcluded((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleInclude = (id: string) =>
+    setExcluded((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) {
+        n.delete(id);
+      } else {
+        n.add(id);
+      }
+      return n;
+    });
   const setAll = (on: boolean) => setExcluded(on ? new Set() : new Set(pool.map((i) => i.id)));
 
   return (
@@ -128,7 +148,7 @@ export function Reports({
             <div className="eyebrow" style={{ marginBottom: 7 }}>Category</div>
             <div className="chips">
               {catGroups.map((c) => (
-                <button key={c.id} className={`chip ${catId === c.id ? 'chip--active' : ''}`} onClick={() => setCatId(c.id)}>
+                <button key={c.id} className={`chip ${currentCatId === c.id ? 'chip--active' : ''}`} onClick={() => setCatId(c.id)}>
                   {c.label}<span className="chip__count">{c.items.length}</span>
                 </button>
               ))}

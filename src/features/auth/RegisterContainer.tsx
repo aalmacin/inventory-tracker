@@ -28,10 +28,10 @@ export function RegisterContainer() {
       nav('/', { replace: true });
     } catch (e) {
       const code = (e as { code?: string }).code;
-      if (code === 'auth/email-already-in-use') throw new Error('That email is already registered — try signing in.');
-      if (code === 'auth/invalid-email') throw new Error('That email address is invalid.');
-      if (code === 'auth/weak-password') throw new Error('Password is too weak (use at least 6 characters).');
-      throw new Error('Sign-up failed. Please try again.');
+      if (code === 'auth/email-already-in-use') throw new Error('That email is already registered — try signing in.', { cause: e });
+      if (code === 'auth/invalid-email') throw new Error('That email address is invalid.', { cause: e });
+      if (code === 'auth/weak-password') throw new Error('Password is too weak (use at least 6 characters).', { cause: e });
+      throw new Error('Sign-up failed. Please try again.', { cause: e });
     }
   };
 

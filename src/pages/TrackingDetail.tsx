@@ -147,7 +147,8 @@ function PrintSheet({ t, onlyOrder, onClose }: { t: TrackingDetailVM; onlyOrder:
                 <tbody>
                   {c.rows.map((r) => {
                     const d = r.dlv;
-                    let got: ReactNode = ''; let gotCls = 'n';
+                    let got: ReactNode;
+                    let gotCls = 'n';
                     if (!has(r.ord)) got = '';
                     else if (!d) { got = '–'; gotCls = 'n x'; }
                     else if (d.ok) got = '✓';

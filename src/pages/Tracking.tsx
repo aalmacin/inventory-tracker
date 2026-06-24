@@ -119,7 +119,7 @@ function TrkRow({
 }
 
 export function Tracking({
-  mode, categories, initialLines = {}, initialNote = '', initialDateMs = Date.now(),
+  mode, categories, initialLines = {}, initialNote = '', initialDateMs,
   recentInv, recentOrd, onSave, onCancel,
 }: {
   mode: 'new' | 'edit';
@@ -134,7 +134,10 @@ export function Tracking({
 }) {
   const [lines, setLines] = useState<Lines>(() => JSON.parse(JSON.stringify(initialLines)));
   const [note, setNote] = useState(initialNote);
-  const [date, setDate] = useState(() => new Date(initialDateMs).toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => {
+    const ms = initialDateMs ?? Date.now();
+    return new Date(ms).toISOString().slice(0, 10);
+  });
   const [active, setActive] = useState<string | null>(null); // `${itemId}:${field}`
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [filter, setFilter] = useState<'all' | 'order'>('all');
@@ -157,7 +160,15 @@ export function Tracking({
     });
 
   const toggleCat = (id: string) =>
-    setCollapsed((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setCollapsed((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) {
+        n.delete(id);
+      } else {
+        n.add(id);
+      }
+      return n;
+    });
 
   const save = () => {
     const clean: Lines = {};
