@@ -70,7 +70,7 @@ export function Login({
         <div style={{ flex: '0 0 auto', height: 34 }} />
         <div style={{ padding: '0 26px', flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 18, marginBottom: 30 }}>
-            <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px oklch(0.52 0.083 194 / 0.35)' }}>
+            <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px oklch(0.587 0.224 26 / 0.35)' }}>
               <Icon name="box" size={28} strokeWidth={1.8} />
             </div>
             <div>

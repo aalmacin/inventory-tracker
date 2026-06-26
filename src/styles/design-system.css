@@ -24,12 +24,12 @@
   --ink-3:        #87877e;
   --ink-4:        #a8a89e;
 
-  --accent:       oklch(0.52 0.083 194);
-  --accent-press: oklch(0.46 0.083 194);
+  --accent:       #e32029;
+  --accent-press: oklch(0.52 0.20 26);
   --accent-ink:   #ffffff;
-  --accent-weak:  oklch(0.96 0.022 194);
-  --accent-line:  oklch(0.88 0.04 194);
-  --accent-text:  oklch(0.46 0.083 194);
+  --accent-weak:  oklch(0.96 0.03 26);
+  --accent-line:  oklch(0.88 0.07 26);
+  --accent-text:  oklch(0.50 0.20 26);
 
   --ok:           oklch(0.56 0.12 152);
   --ok-bg:        oklch(0.95 0.045 152);
@@ -101,7 +101,7 @@
 .btn--danger { background: var(--surface); color: var(--out); border: 1px solid var(--out-line); }
 .btn--danger:hover { background: var(--out-bg); }
 .btn--accent-soft { background: var(--accent-weak); color: var(--accent-text); border: 1px solid var(--accent-line); }
-.btn--accent-soft:hover { background: oklch(0.94 0.03 194); }
+.btn--accent-soft:hover { background: oklch(0.94 0.04 26); }
 .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: var(--r); color: var(--ink-2); transition: background .12s, color .12s; }
 .icon-btn:hover { background: var(--surface-2); color: var(--ink); }
 .icon-btn:active { transform: scale(0.94); }
@@ -196,7 +196,7 @@ textarea.input { height: auto; min-height: 72px; padding: 11px 13px; line-height
 .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--ink-4); transition: color .12s; position: relative; }
 .tab__label { font-size: 10px; font-weight: 600; letter-spacing: 0.01em; }
 .tab--active { color: var(--accent-text); }
-.tab__fab { width: 50px; height: 50px; border-radius: 16px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px oklch(0.52 0.083 194 / 0.4); margin-top: -14px; transition: transform .1s, background .12s; }
+.tab__fab { width: 50px; height: 50px; border-radius: 16px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px oklch(0.587 0.224 26 / 0.4); margin-top: -14px; transition: transform .1s, background .12s; }
 .tab--fab:active .tab__fab { transform: scale(0.93); }
 .tab--fab .tab__label { color: var(--ink-3); }
 
