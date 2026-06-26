@@ -9,13 +9,17 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Icon } from '../ui/Icon';
 import { Button, Empty } from '../ui/primitives';
 import { formatQty } from '../lib/quantity';
+import { hasQty, type UnitQty } from '../lib/units';
 
 export interface ReportItem { id: string; name: string; }
 export interface ReportCategory { id: string; label: string; items: ReportItem[]; }
-export interface ReportLine { inv?: number | null; ord?: number | null; }
+export interface ReportLine { inv?: UnitQty | null; ord?: UnitQty | null; }
 export interface ReportTracking { id: string; dateMs: number; lines: Record<string, ReportLine>; }
 
-const has = (v: unknown): v is number => v !== undefined && v !== null && (v as number) !== ('' as unknown);
+// Extract numeric value from a UnitQty for chart aggregation (units are mutually exclusive so there is only one value).
+const qtyVal = (q: UnitQty | null | undefined): number =>
+  q ? (Object.values(q)[0] ?? 0) : 0;
+
 const fmtNum = (n: number) => formatQty(n);
 
 type Metric = 'inv' | 'ord';
@@ -88,7 +92,7 @@ export function Reports({
   const pool = useMemo(() => {
     if (!group) return [];
     if (!orderedOnly) return group.items;
-    return group.items.filter((it) => sessions.some((t) => has(t.lines?.[it.id]?.ord)));
+    return group.items.filter((it) => sessions.some((t) => hasQty(t.lines?.[it.id]?.ord)));
   }, [group, orderedOnly, sessions]);
 
   const itemMeta = useMemo(() => {
@@ -97,7 +101,7 @@ export function Reports({
       let total = 0, hits = 0;
       sessions.forEach((t) => {
         const v = t.lines?.[it.id]?.[metric];
-        if (has(v)) { total += v; hits++; }
+        if (hasQty(v)) { total += qtyVal(v); hits++; }
       });
       meta[it.id] = { color: itemColor(i, pool.length), total, hits, name: it.name };
     });
@@ -111,7 +115,7 @@ export function Reports({
     const segs: { id: string; value: number }[] = [];
     included.forEach((it) => {
       const v = t.lines?.[it.id]?.[metric];
-      if (has(v) && v > 0) { segs.push({ id: it.id, value: v }); total += v; }
+      if (hasQty(v)) { const n = qtyVal(v); if (n > 0) { segs.push({ id: it.id, value: n }); total += n; } }
     });
     return { t, segs, total };
   }), [sessions, included, metric]);
