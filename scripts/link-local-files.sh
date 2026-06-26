@@ -18,6 +18,7 @@ SOURCE="${SOURCE%/}"
 # Gitignored paths required to run Firebase locally. Globs are expanded in SOURCE.
 ITEMS=(
   ".env.local"
+  ".env.prod"
   "emulator-data"
   "scripts/seed-edo-*"
 )
