@@ -24,13 +24,9 @@ import { Icon } from '../ui/Icon';
 import { Button, Switch, SheetModal } from '../ui/primitives';
 
 // ── view models the container must supply ────────────────────
-export type Unit = 'pieces' | 'packs' | 'boxes';
-const UNITS: Unit[] = ['pieces', 'packs', 'boxes'];
-
 export interface ItemVM {
   id: string;
   name: string;
-  unit: Unit;
   disabled: boolean;
 }
 export interface CategoryVM {
@@ -46,10 +42,10 @@ export interface CatalogProps {
   onRenameCategory: (id: string, label: string) => void;
   onDeleteCategory: (id: string) => void;
   onMoveCategory: (id: string, dir: -1 | 1) => void;
-  onAddItem: (input: { categoryId: string; name: string; unit: Unit }) => void;
+  onAddItem: (input: { categoryId: string; name: string }) => void;
   onUpdateItem: (
     id: string,
-    patch: { name: string; category: string; unit: Unit; disabled: boolean },
+    patch: { name: string; category: string; disabled: boolean },
   ) => void;
   onDeleteItem: (id: string) => void;
   onMoveItem: (id: string, dir: -1 | 1) => void;
@@ -117,7 +113,6 @@ function ItemSheet({
   const isEdit = !!item;
   const [name, setName] = useState(item ? item.name : '');
   const [category, setCategory] = useState(categoryId);
-  const [unit, setUnit] = useState<Unit>(item ? item.unit : 'pieces');
   const [disabled, setDisabled] = useState(item ? item.disabled : false);
   const [touched, setTouched] = useState(false);
   const err = touched && !name.trim();
@@ -125,8 +120,8 @@ function ItemSheet({
   const save = () => {
     setTouched(true);
     if (!name.trim()) return;
-    if (isEdit && item) onUpdate(item.id, { name: name.trim(), category, unit, disabled });
-    else onAdd({ categoryId: category, name: name.trim(), unit });
+    if (isEdit && item) onUpdate(item.id, { name: name.trim(), category, disabled });
+    else onAdd({ categoryId: category, name: name.trim() });
     onClose();
   };
 
@@ -151,24 +146,6 @@ function ItemSheet({
             <select className="select" value={category} onChange={(e) => setCategory(e.target.value)}>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
-          </div>
-          <div className="field">
-            <label className="label">Unit</label>
-            <div className="seg" role="radiogroup" aria-label="Unit">
-              {UNITS.map((u) => (
-                <button
-                  key={u}
-                  type="button"
-                  role="radio"
-                  aria-checked={unit === u}
-                  className={`seg__opt ${unit === u ? 'seg__opt--active is-delivery' : ''}`}
-                  style={{ textTransform: 'capitalize' }}
-                  onClick={() => setUnit(u)}
-                >
-                  {u}
-                </button>
-              ))}
-            </div>
           </div>
           <div className="toggle-row">
             <span style={{ color: disabled ? 'var(--ink-4)' : 'var(--accent-text)', display: 'flex' }}>
@@ -242,7 +219,6 @@ function SortableItemRow({
       <button className="row__body" style={{ background: 'none', textAlign: 'left', padding: 0 }} onClick={onEdit}>
         <div className="row__title" style={{ fontSize: 14 }}>
           <span className="item-name">{item.name}</span>
-          <span className="mono muted-2" style={{ fontSize: 11, textTransform: 'capitalize' }}>{item.unit}</span>
           {item.disabled && <span className="badge badge--neutral">Hidden</span>}
         </div>
       </button>

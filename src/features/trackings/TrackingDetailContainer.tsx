@@ -3,8 +3,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { TrackingDetail } from '../../pages/TrackingDetail';
 import { useAppSelector } from '../../lib/hooks';
 import * as fs from './firestore';
-
-const has = (v: unknown): v is number => v !== undefined && v !== null;
+import { hasQty } from '../../lib/units';
 
 export function TrackingDetailContainer() {
   const nav = useNavigate();
@@ -30,8 +29,8 @@ export function TrackingDetailContainer() {
                 rows: items
                   .filter((i) => i.category === c.id)
                   .map((i) => ({ i, line: t.lines[i.id] }))
-                  .filter((r) => r.line && (has(r.line.inv) || has(r.line.ord)))
-                  .map((r) => ({ itemId: r.i.id, name: r.i.name, unit: r.i.unit, inv: r.line.inv, ord: r.line.ord, dlv: r.line.dlv })),
+                  .filter((r) => r.line && (hasQty(r.line.inv) || hasQty(r.line.ord)))
+                  .map((r) => ({ itemId: r.i.id, name: r.i.name, inv: r.line.inv, ord: r.line.ord, dlv: r.line.dlv })),
               }))
               .filter((c) => c.rows.length),
           }

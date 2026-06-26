@@ -9,14 +9,14 @@ import { createPortal } from 'react-dom';
 import { Icon } from '../ui/Icon';
 import { Button, Empty, FlowHeader, SheetModal } from '../ui/primitives';
 import { formatQty } from '../lib/quantity';
+import { formatUnitQtyLong, hasQty, qtyEntries, UNIT_ABBR, UNIT_DISPLAY_ORDER, type Unit, type UnitQty } from '../lib/units';
 
-export interface DeliveryCheck { ok: boolean; arrived?: number; note?: string; }
+export interface DeliveryCheck { ok: boolean; arrived?: UnitQty; note?: string; }
 export interface DetailRowVM {
   itemId: string;
   name: string;
-  unit: string;
-  inv: number | null;
-  ord: number | null;
+  inv?: UnitQty;
+  ord?: UnitQty;
   dlv?: DeliveryCheck;
 }
 export interface DetailCategoryVM { id: string; label: string; rows: DetailRowVM[]; }
@@ -28,9 +28,18 @@ export interface TrackingDetailVM {
   categories: DetailCategoryVM[];   // all recorded rows, grouped
 }
 
-const has = (v: unknown) => v !== undefined && v !== null && v !== '';
-const fmtNum = (n: number | null) => (n === null ? '–' : formatQty(n));
 const fmtDate = (ms: number) => new Date(ms).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+function CellQty({ qty, empty }: { qty: UnitQty | undefined; empty: string }) {
+  if (!hasQty(qty)) return <>{empty}</>;
+  return (
+    <span className="cellqty">
+      {qtyEntries(qty).map(({ unit, value }) => (
+        <span key={unit} className="cellqty__line">{formatQty(value)}{' '}<i>{UNIT_ABBR[unit]}</i></span>
+      ))}
+    </span>
+  );
+}
 const fmtDateLong = (ms: number) => new Date(ms).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 function relTime(ms: number) {
   const mins = Math.round((Date.now() - ms) / 60000);
@@ -43,36 +52,65 @@ function relTime(ms: number) {
 
 // ── delivery sub-components ──────────────────────────────────
 function DeliverySub({ row }: { row: DetailRowVM }) {
-  if (!has(row.ord) || !row.dlv) return null;
+  if (!hasQty(row.ord) || !row.dlv) return null;
   if (row.dlv.ok) {
     return <div className="trk-row__sub--dlv is-ok"><Icon name="check" size={12} strokeWidth={2.6} /><span>Received in full</span></div>;
   }
-  return <div className="trk-row__sub--dlv is-bad"><Icon name="alert" size={12} strokeWidth={2.2} /><span>Got {fmtNum(row.dlv.arrived ?? 0)} of {fmtNum(row.ord)}</span></div>;
+  return (
+    <div className="trk-row__sub--dlv is-bad">
+      <Icon name="alert" size={12} strokeWidth={2.2} />
+      <span>Got {formatUnitQtyLong(row.dlv.arrived)} of {formatUnitQtyLong(row.ord)}</span>
+    </div>
+  );
 }
 
 function DeliveryCell({ row, active, onClick }: { row: DetailRowVM; active: boolean; onClick: () => void }) {
-  if (!has(row.ord)) return <div className="cell cell--dlv cell--dlv-na">·</div>;
+  if (!hasQty(row.ord)) return <div className="cell cell--dlv cell--dlv-na">·</div>;
   const d = row.dlv;
-  const received = d ? (d.ok ? row.ord : (d.arrived ?? 0)) : null;
-  const matched = received === row.ord; // RCV matches ORD → green, otherwise red
-  const content: ReactNode = d ? fmtNum(received) : <Icon name="box" size={16} />;
-  return <button className={`cell cell--dlv ${matched ? 'cell--dlv-ok' : 'cell--dlv-bad'} ${active ? 'cell--active' : ''}`} onClick={onClick} aria-label="delivery check">{content}</button>;
+  const content: ReactNode = d
+    ? <CellQty qty={d.ok ? row.ord : d.arrived} empty="–" />
+    : <Icon name="box" size={16} />;
+  return (
+    <button
+      className={`cell cell--dlv ${d ? (d.ok ? 'cell--dlv-ok' : 'cell--dlv-bad') : ''} ${active ? 'cell--active' : ''}`}
+      onClick={onClick}
+      aria-label="delivery check"
+    >
+      {content}
+    </button>
+  );
 }
 
 function DeliveryEditor({ row, onSave, onClose }: { row: DetailRowVM; onSave: (d: DeliveryCheck | null) => void; onClose: () => void }) {
-  const ord = row.ord ?? 0;
-  // Default to a full delivery (arrived === ord); short deliveries are entered by reducing the number.
-  const [arrived, setArrived] = useState(() => (row.dlv && !row.dlv.ok && row.dlv.arrived != null ? String(row.dlv.arrived) : String(ord)));
+  const ord = row.ord ?? {};
+  const ordUnits = UNIT_DISPLAY_ORDER.filter((u) => ord[u] != null);
+
+  const [arrived, setArrived] = useState<UnitQty>(() =>
+    row.dlv && !row.dlv.ok && row.dlv.arrived ? { ...row.dlv.arrived } : { ...ord },
+  );
   const [note, setNote] = useState(row.dlv?.note ?? '');
 
-  const persist = (next: { arrived: string; note: string }) => {
-    const n = next.arrived === '' ? 0 : +next.arrived;
-    if (n >= ord) onSave({ ok: true, note: next.note.trim() });
-    else onSave({ ok: false, arrived: n, note: next.note.trim() });
+  const isFullDelivery = ordUnits.every((u) => (arrived[u] ?? 0) >= (ord[u] ?? 0));
+
+  const persist = (a: UnitQty, n: string) => {
+    const full = ordUnits.every((u) => (a[u] ?? 0) >= (ord[u] ?? 0));
+    onSave({ ok: full, ...(full ? {} : { arrived: a }), note: n.trim() });
   };
-  const setArrivedAndSave = (raw: string) => { const c = raw.replace(/[^0-9.]/g, ''); setArrived(c); persist({ arrived: c, note }); };
-  const step = (d: number) => { const base = arrived === '' ? 0 : +arrived || 0; setArrivedAndSave(String(Math.max(0, base + d))); };
-  const setNoteAndSave = (v: string) => { setNote(v); persist({ arrived, note: v }); };
+
+  const updateUnit = (u: Unit, raw: string) => {
+    const n = Math.max(0, parseInt(raw.replace(/[^0-9]/g, ''), 10) || 0);
+    const next: UnitQty = { ...arrived, [u]: n };
+    setArrived(next);
+    persist(next, note);
+  };
+
+  const step = (u: Unit, d: number) => {
+    const next: UnitQty = { ...arrived, [u]: Math.max(0, (arrived[u] ?? 0) + d) };
+    setArrived(next);
+    persist(next, note);
+  };
+
+  const setNoteAndSave = (v: string) => { setNote(v); persist(arrived, v); };
 
   return (
     <div className="celled">
@@ -86,12 +124,40 @@ function DeliveryEditor({ row, onSave, onClose }: { row: DetailRowVM; onSave: (d
 
       <div className="dlv-arrived">
         <span className="dlv-arrived__lbl">How many arrived?</span>
-        <div className="bignum" style={{ height: 42 }}>
-          <button className="bignum__btn" style={{ width: 42 }} onClick={() => step(-1)} aria-label="minus"><Icon name="minus" size={18} /></button>
-          <input className="bignum__val" style={{ fontSize: 18 }} inputMode="decimal" value={arrived} placeholder="0" onChange={(e) => setArrivedAndSave(e.target.value)} />
-          <button className="bignum__btn" style={{ width: 42 }} onClick={() => step(1)} aria-label="plus"><Icon name="plus" size={18} /></button>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          {ordUnits.map((u) => (
+            <div key={u} style={{ flex: 1 }}>
+              <div className="eyebrow" style={{ marginBottom: 4, textTransform: 'capitalize' }}>
+                {u} <span className="muted-2">· of {ord[u]}</span>
+              </div>
+              <div className="bignum" style={{ height: 42 }}>
+                <button className="bignum__btn" style={{ width: 36 }} onClick={() => step(u, -1)} aria-label={`minus ${u}`}>
+                  <Icon name="minus" size={16} />
+                </button>
+                <input
+                  className="bignum__val"
+                  style={{ fontSize: 16 }}
+                  inputMode="numeric"
+                  value={arrived[u] ?? ''}
+                  placeholder="0"
+                  onChange={(e) => updateUnit(u, e.target.value)}
+                />
+                <button className="bignum__btn" style={{ width: 36 }} onClick={() => step(u, 1)} aria-label={`plus ${u}`}>
+                  <Icon name="plus" size={16} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
-        <span className="mono muted-2" style={{ fontSize: 12, flexShrink: 0 }}>of {fmtNum(ord)}</span>
+        {!isFullDelivery && (
+          <button className="recchip" style={{ marginTop: 10 }} onClick={() => {
+            const next = { ...ord };
+            setArrived(next);
+            persist(next, note);
+          }}>
+            Mark as full delivery
+          </button>
+        )}
       </div>
 
       <div className="dlv-cmt">
@@ -105,10 +171,10 @@ function DeliveryEditor({ row, onSave, onClose }: { row: DetailRowVM; onSave: (d
 // ── print sheet (hidden except @media print) ─────────────────
 function PrintSheet({ t, onlyOrder, onClose }: { t: TrackingDetailVM; onlyOrder: boolean; onClose: () => void }) {
   const cats = t.categories
-    .map((c) => ({ ...c, rows: c.rows.filter((r) => (onlyOrder ? has(r.ord) : has(r.inv) || has(r.ord))) }))
+    .map((c) => ({ ...c, rows: c.rows.filter((r) => (onlyOrder ? hasQty(r.ord) : hasQty(r.inv) || hasQty(r.ord))) }))
     .filter((c) => c.rows.length);
-  const counted = t.categories.reduce((s, c) => s + c.rows.filter((r) => has(r.inv)).length, 0);
-  const ordered = t.categories.reduce((s, c) => s + c.rows.filter((r) => has(r.ord)).length, 0);
+  const counted = t.categories.reduce((s, c) => s + c.rows.filter((r) => hasQty(r.inv)).length, 0);
+  const ordered = t.categories.reduce((s, c) => s + c.rows.filter((r) => hasQty(r.ord)).length, 0);
 
   useEffect(() => {
     const tid = setTimeout(() => { try { window.print(); } catch { /* ignore */ } onClose(); }, 250);
@@ -141,15 +207,15 @@ function PrintSheet({ t, onlyOrder, onClose }: { t: TrackingDetailVM; onlyOrder:
                     const d = r.dlv;
                     let got: ReactNode;
                     let gotCls = 'n';
-                    if (!has(r.ord)) got = '';
+                    if (!hasQty(r.ord)) got = '';
                     else if (!d) { got = '–'; gotCls = 'n x'; }
-                    else if (d.ok) got = fmtNum(r.ord);
-                    else { got = fmtNum(d.arrived ?? 0); gotCls = 'n x'; }
+                    else if (d.ok) got = formatUnitQtyLong(r.ord);
+                    else { got = formatUnitQtyLong(d.arrived); gotCls = 'n x'; }
                     return (
                       <tr key={r.itemId}>
                         <td>{r.name}</td>
-                        <td className="n">{has(r.inv) ? fmtNum(r.inv) : '–'}</td>
-                        <td className={`n ${has(r.ord) ? '' : 'x'}`}>{has(r.ord) ? fmtNum(r.ord) : 'X'}</td>
+                        <td className="n">{hasQty(r.inv) ? formatUnitQtyLong(r.inv) : '–'}</td>
+                        <td className={`n ${hasQty(r.ord) ? '' : 'x'}`}>{hasQty(r.ord) ? formatUnitQtyLong(r.ord) : 'X'}</td>
                         <td className={gotCls}>{got}</td>
                       </tr>
                     );
@@ -181,18 +247,18 @@ export function TrackingDetail({
   const [printing, setPrinting] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
 
-  const counted = t.categories.reduce((s, c) => s + c.rows.filter((r) => has(r.inv)).length, 0);
-  const ordered = t.categories.reduce((s, c) => s + c.rows.filter((r) => has(r.ord)).length, 0);
-  const toCheck = t.categories.reduce((s, c) => s + c.rows.filter((r) => has(r.ord) && !r.dlv).length, 0);
+  const counted = t.categories.reduce((s, c) => s + c.rows.filter((r) => hasQty(r.inv)).length, 0);
+  const ordered = t.categories.reduce((s, c) => s + c.rows.filter((r) => hasQty(r.ord)).length, 0);
+  const toCheck = t.categories.reduce((s, c) => s + c.rows.filter((r) => hasQty(r.ord) && !r.dlv).length, 0);
 
   const copyOrder = () => {
     let out = `ORDER — ${fmtDateLong(t.dateMs)}\n`;
     if (t.note) out += `Note: ${t.note}\n`;
     t.categories.forEach((c) => {
-      const rows = c.rows.filter((r) => has(r.ord));
+      const rows = c.rows.filter((r) => hasQty(r.ord));
       if (!rows.length) return;
       out += `\n${c.label}\n`;
-      rows.forEach((r) => { out += `  • ${r.name} ×${r.ord === null ? '' : formatQty(r.ord)}\n`; });
+      rows.forEach((r) => { out += `  • ${r.name}: ${formatUnitQtyLong(r.ord)}\n`; });
     });
     if (navigator.clipboard) navigator.clipboard.writeText(out.trim()).catch(() => {});
     setCopied(true);
@@ -245,9 +311,9 @@ export function TrackingDetail({
           )}
 
           {t.categories.map((c) => {
-            let rows = c.rows.filter((r) => has(r.inv) || has(r.ord));
-            if (filter === 'order') rows = rows.filter((r) => has(r.ord));
-            if (filter === 'check') rows = rows.filter((r) => has(r.ord) && (!r.dlv || r.itemId === activeDlv));
+            let rows = c.rows.filter((r) => hasQty(r.inv) || hasQty(r.ord));
+            if (filter === 'order') rows = rows.filter((r) => hasQty(r.ord));
+            if (filter === 'check') rows = rows.filter((r) => hasQty(r.ord) && (!r.dlv || r.itemId === activeDlv));
             if (!rows.length) return null;
             return (
               <div key={c.id} className="card card--flush">
@@ -263,21 +329,24 @@ export function TrackingDetail({
                       <div className="trk-row__main trk-row__main--dlv">
                         <div style={{ minWidth: 0 }}>
                           <div className="trk-row__name">{r.name}</div>
-                          <div className="trk-row__sub">{r.unit}</div>
                           <DeliverySub row={r} />
-                          {r.dlv?.note && <div className="dlv-comment-line">“{r.dlv.note}”</div>}
+                          {r.dlv?.note && <div className="dlv-comment-line">"{r.dlv.note}"</div>}
                         </div>
-                        <div className={`cell cell--inv ${has(r.inv) ? 'cell--has' : ''}`} style={{ cursor: 'default' }}>{has(r.inv) ? fmtNum(r.inv) : '–'}</div>
-                        <div className={`cell cell--ord ${has(r.ord) ? 'cell--has' : 'cell--x'}`} style={{ cursor: 'default' }}>{has(r.ord) ? fmtNum(r.ord) : 'X'}</div>
+                        <div className={`cell cell--inv ${hasQty(r.inv) ? 'cell--has cell--multi' : ''}`} style={{ cursor: 'default' }}>
+                          <CellQty qty={r.inv} empty="–" />
+                        </div>
+                        <div className={`cell cell--ord ${hasQty(r.ord) ? 'cell--has cell--multi' : 'cell--x'}`} style={{ cursor: 'default' }}>
+                          <CellQty qty={r.ord} empty="X" />
+                        </div>
                         <DeliveryCell row={r} active={open} onClick={() => {
-                          if (!has(r.ord)) return;
+                          if (!hasQty(r.ord)) return;
                           if (open) { setActiveDlv(null); return; }
-                          // first open defaults to a full delivery (arrived === ord)
+                          // first open defaults to a full delivery
                           if (!r.dlv) onSetDelivery(r.itemId, { ok: true });
                           setActiveDlv(r.itemId);
                         }} />
                       </div>
-                      {open && has(r.ord) && (
+                      {open && hasQty(r.ord) && (
                         <DeliveryEditor row={r} onSave={(d) => onSetDelivery(r.itemId, d)} onClose={() => setActiveDlv(null)} />
                       )}
                     </div>

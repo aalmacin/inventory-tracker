@@ -1,4 +1,5 @@
-// Tracking.tsx — the walk: record INV + ORD per item, with recent-value chips.
+// Tracking.tsx — the walk: record INV + ORD per item as a per-unit breakdown
+// (e.g. 3 boxes, 2 packs, 11 pieces), with recent-breakdown chips.
 // PRESENTATIONAL ONLY.
 //
 // THE SEAM: the container passes the active catalog grouped by category, the
@@ -9,43 +10,62 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../ui/Icon';
 import { Button, Empty, FlowHeader } from '../ui/primitives';
 import { FRACTIONS, formatQty, parseFraction, roundQty } from '../lib/quantity';
+import {
+  UNIT_ABBR, UNIT_DISPLAY_ORDER, formatUnitQtyLong, hasQty, qtyEntries, qtyKey,
+  type Unit, type UnitQty,
+} from '../lib/units';
 
-export type LineValue = { inv?: number | ''; ord?: number | null };
+export type LineValue = { inv?: UnitQty; ord?: UnitQty };
 export type Lines = Record<string, LineValue>;
 
-export interface TrackItemVM { id: string; name: string; unit: string; }
+export interface TrackItemVM { id: string; name: string; }
 export interface TrackCategoryVM { id: string; label: string; items: TrackItemVM[]; }
 
-const has = (v: unknown) => v !== undefined && v !== null && v !== '';
-
-// quick-pick fractions shown as chips (custom covers ⅓/⅔ and anything else)
+// quick-pick fractions shown as chips (covers the common ¼ ½ ¾; custom covers the rest)
 const CHIPS = FRACTIONS.filter((f) => f.value === 0.25 || f.value === 0.5 || f.value === 0.75);
 
+// ── compact per-unit cell content: a small vertical stack (3bx / 2pk / 11pc) ──
+function CellQty({ qty, empty }: { qty: UnitQty | undefined; empty: string }) {
+  if (!hasQty(qty)) return <>{empty}</>;
+  return (
+    <span className="cellqty">
+      {qtyEntries(qty).map(({ unit, value }) => (
+        <span key={unit} className="cellqty__line">{formatQty(value)}{' '}<i>{UNIT_ABBR[unit]}</i></span>
+      ))}
+    </span>
+  );
+}
+
 // ── inline cell editor ───────────────────────────────────────
-// Quantity is entered as a whole number + a fraction (½ ¼ ¾ or custom n/d).
-// Decimals never appear in the UI — the value is combined to a decimal only on
-// the way to storage.
+// One breakdown is edited a unit at a time: pick a unit (boxes/packs/pieces) and
+// set its whole number + fraction (½ ¼ ¾ or custom n/d). Decimals never appear in
+// the UI — the value is combined to a decimal only on the way to storage.
 function CellEditor({
   item, field, value, recents, onChange, onClose,
 }: {
   item: TrackItemVM;
   field: 'inv' | 'ord';
-  value: number | null | '' | undefined;
-  recents: number[];
-  onChange: (v: number | null | '') => void;
+  value: UnitQty | undefined;
+  recents: UnitQty[];
+  onChange: (q: UnitQty) => void;
   onClose: () => void;
 }) {
   const isInv = field === 'inv';
-  const init = has(value) && typeof value === 'number' ? (value as number) : null;
-  const [whole, setWhole] = useState<string>(init !== null ? String(Math.floor(init)) : '');
-  const [frac, setFrac] = useState<number>(init !== null ? roundQty(init - Math.floor(init)) : 0);
+  const [qty, setQty] = useState<UnitQty>(() => ({ ...(value ?? {}) }));
+  const [unit, setUnit] = useState<Unit>(() => qtyEntries(value)[0]?.unit ?? 'boxes');
+  const cur = qty[unit];
+  const [whole, setWhole] = useState<string>(cur != null ? String(Math.floor(cur)) : '');
+  const [frac, setFrac] = useState<number>(cur != null ? roundQty(cur - Math.floor(cur)) : 0);
   const [customOpen, setCustomOpen] = useState(false);
   const [num, setNum] = useState('1');
   const [den, setDen] = useState('3');
 
+  // write the active unit's value — always a single-unit breakdown (boxes XOR packs)
   const emit = (w: string, f: number) => {
-    if (w === '' && f === 0) { onChange(isInv ? '' : null); return; }
-    onChange(roundQty((parseInt(w, 10) || 0) + f));
+    const out: UnitQty = {};
+    if (!(w === '' && f === 0)) out[unit] = roundQty((parseInt(w, 10) || 0) + f);
+    setQty(out);
+    onChange(out);
   };
   const setW = (raw: string) => { const c = raw.replace(/[^0-9]/g, ''); setWhole(c); emit(c, frac); };
   const setF = (f: number) => { setFrac(f); if (f === 0) setCustomOpen(false); emit(whole, f); };
@@ -57,14 +77,39 @@ function CellEditor({
     const f = roundQty(v - Math.floor(v));
     setWhole(String(w)); setFrac(f); setCustomOpen(false); emit(String(w), f);
   };
+
+  // switch the unit label — quantity is preserved (same number, different label)
+  const selectUnit = (u: Unit) => {
+    if (u === unit) return;
+    const currentVal = qty[unit];
+    const out: UnitQty = currentVal != null ? ({ [u]: currentVal } as UnitQty) : {};
+    setQty(out);
+    onChange(out);
+    setUnit(u);
+  };
+
+  const clearAll = () => { setQty({}); onChange({}); onClose(); };
+  const applyRecent = (r: UnitQty) => { setQty({ ...r }); onChange({ ...r }); onClose(); };
+
   const fracGlyph = frac > 0 ? (FRACTIONS.find((x) => Math.abs(x.value - frac) < 0.02)?.glyph ?? formatQty(frac)) : '';
-  const totalGlyph = whole === '' && frac === 0 ? (isInv ? '—' : 'X') : formatQty((parseInt(whole, 10) || 0) + frac);
+  const totalGlyph = hasQty(qty) ? formatUnitQtyLong(qty) : (isInv ? '—' : 'X');
 
   return (
     <div className="celled">
       <div className="celled__head">
         <div className="celled__title">{isInv ? 'Inventory' : 'Order'} <span>· {item.name}</span></div>
         <button className="icon-btn" style={{ width: 30, height: 30 }} onClick={onClose} aria-label="close"><Icon name="x" size={18} strokeWidth={2.4} /></button>
+      </div>
+
+      <div className="seg" role="radiogroup" aria-label="Unit" style={{ marginBottom: 10 }}>
+        {UNIT_DISPLAY_ORDER.map((u) => (
+          <button key={u} type="button" role="radio" aria-checked={unit === u}
+            className={`seg__opt ${unit === u ? 'seg__opt--active is-delivery' : ''}`}
+            style={{ textTransform: 'capitalize' }}
+            onClick={() => selectUnit(u)}>
+            {u}
+          </button>
+        ))}
       </div>
 
       <div className="celled__row">
@@ -74,26 +119,28 @@ function CellEditor({
             onChange={(e) => setW(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') onClose(); }} />
           <button className="bignum__btn" onClick={() => step(1)} aria-label="plus"><Icon name="plus" size={20} /></button>
         </div>
-        <div className="fracbox" aria-label="fraction">
-          <span className="fracbox__lbl">Fraction</span>
-          <span className={`fracbox__val ${frac === 0 ? 'is-none' : ''}`}>{frac > 0 ? fracGlyph : 'none'}</span>
-        </div>
-        {isInv
-          ? <button className="recchip recchip--x" onClick={() => { onChange(''); onClose(); }}>Clear</button>
-          : <button className="recchip recchip--x" onClick={() => { onChange(null); onClose(); }}><Icon name="x" size={13} /> No order</button>}
+        {isInv && (
+          <div className="fracbox" aria-label="fraction">
+            <span className="fracbox__lbl">Fraction</span>
+            <span className={`fracbox__val ${frac === 0 ? 'is-none' : ''}`}>{frac > 0 ? fracGlyph : 'none'}</span>
+          </div>
+        )}
+        <button className="recchip recchip--x" onClick={clearAll}>{isInv ? 'Clear' : <><Icon name="x" size={13} /> No order</>}</button>
       </div>
 
       <div className="celled__total">Total: <b>{totalGlyph}</b></div>
 
-      <div className="fracchips">
-        <button className={`recchip ${frac === 0 ? 'recchip--on' : ''}`} onClick={() => setF(0)}>None</button>
-        {CHIPS.map((c) => (
-          <button key={c.glyph} className={`recchip ${Math.abs(frac - c.value) < 0.02 ? 'recchip--on' : ''}`} onClick={() => setF(c.value)}>{c.glyph}</button>
-        ))}
-        <button className={`recchip ${customOpen ? 'recchip--on' : ''}`} onClick={() => setCustomOpen((o) => !o)}>Custom</button>
-      </div>
+      {isInv && (
+        <div className="fracchips">
+          <button className={`recchip ${frac === 0 ? 'recchip--on' : ''}`} onClick={() => setF(0)}>None</button>
+          {CHIPS.map((c) => (
+            <button key={c.glyph} className={`recchip ${Math.abs(frac - c.value) < 0.02 ? 'recchip--on' : ''}`} onClick={() => setF(c.value)}>{c.glyph}</button>
+          ))}
+          <button className={`recchip ${customOpen ? 'recchip--on' : ''}`} onClick={() => setCustomOpen((o) => !o)}>Custom</button>
+        </div>
+      )}
 
-      {customOpen && (
+      {isInv && customOpen && (
         <div className="fraccustom">
           <input className="input fraccustom__n" inputMode="numeric" value={num} onChange={(e) => setNum(e.target.value.replace(/[^0-9]/g, ''))} aria-label="numerator" />
           <span className="fraccustom__slash">/</span>
@@ -106,7 +153,7 @@ function CellEditor({
         <div className="recents__lbl">{recents.length ? 'Recently used' : 'No history yet'}</div>
         {recents.length > 0 ? (
           <div className="recchips">
-            {recents.map((v) => <button key={v} className="recchip" onClick={() => { onChange(v); onClose(); }}>{formatQty(v)}</button>)}
+            {recents.map((r, i) => <button key={qtyKey(r) + i} className="recchip recchip--x" onClick={() => applyRecent(r)}>{formatUnitQtyLong(r)}</button>)}
           </div>
         ) : (
           <div className="recchip--none">First time counting this item — enter a value above.</div>
@@ -124,10 +171,10 @@ function TrkRow({
   activeField: 'inv' | 'ord' | null;
   onActivate: (f: 'inv' | 'ord') => void;
   onClose: () => void;
-  recentInv: number[];
-  recentOrd: number[];
-  setInv: (v: number | '' ) => void;
-  setOrd: (v: number | null) => void;
+  recentInv: UnitQty[];
+  recentOrd: UnitQty[];
+  setInv: (q: UnitQty) => void;
+  setOrd: (q: UnitQty) => void;
 }) {
   const inv = line?.inv;
   const ord = line?.ord;
@@ -136,22 +183,21 @@ function TrkRow({
       <div className="trk-row__main">
         <div style={{ minWidth: 0 }}>
           <div className="trk-row__name">{item.name}</div>
-          <div className="trk-row__sub">{item.unit}</div>
         </div>
-        <button className={`cell cell--inv ${has(inv) ? 'cell--has' : ''} ${activeField === 'inv' ? 'cell--active' : ''}`}
+        <button className={`cell cell--inv ${hasQty(inv) ? 'cell--has cell--multi' : ''} ${activeField === 'inv' ? 'cell--active' : ''}`}
           onClick={() => (activeField === 'inv' ? onClose() : onActivate('inv'))}>
-          {has(inv) ? formatQty(inv as number) : '–'}
+          <CellQty qty={inv} empty="–" />
         </button>
-        <button className={`cell cell--ord ${has(ord) ? 'cell--has' : 'cell--x'} ${activeField === 'ord' ? 'cell--active' : ''}`}
+        <button className={`cell cell--ord ${hasQty(ord) ? 'cell--has cell--multi' : 'cell--x'} ${activeField === 'ord' ? 'cell--active' : ''}`}
           onClick={() => (activeField === 'ord' ? onClose() : onActivate('ord'))}>
-          {has(ord) ? formatQty(ord as number) : 'X'}
+          <CellQty qty={ord} empty="X" />
         </button>
       </div>
       {activeField && (
         <CellEditor key={activeField} item={item} field={activeField}
           value={activeField === 'inv' ? inv : ord}
           recents={activeField === 'inv' ? recentInv : recentOrd}
-          onChange={(v) => (activeField === 'inv' ? setInv(v as number | '') : setOrd(v as number | null))}
+          onChange={(q) => (activeField === 'inv' ? setInv(q) : setOrd(q))}
           onClose={onClose} />
       )}
     </div>
@@ -167,8 +213,8 @@ export function Tracking({
   initialLines?: Lines;
   initialNote?: string;
   initialDateMs?: number;
-  recentInv: (itemId: string) => number[];
-  recentOrd: (itemId: string) => number[];
+  recentInv: (itemId: string) => UnitQty[];
+  recentOrd: (itemId: string) => UnitQty[];
   onSave: (out: { lines: Lines; note: string; dateMs: number }) => void | Promise<void>;
   onCancel: () => void;
 }) {
@@ -186,17 +232,16 @@ export function Tracking({
 
   const allItems = categories.flatMap((c) => c.items);
   const total = allItems.length;
-  const countedN = allItems.filter((i) => has(lines[i.id]?.inv)).length;
-  const orderN = allItems.filter((i) => has(lines[i.id]?.ord)).length;
+  const countedN = allItems.filter((i) => hasQty(lines[i.id]?.inv)).length;
+  const orderN = allItems.filter((i) => hasQty(lines[i.id]?.ord)).length;
 
-  const setField = (id: string, field: 'inv' | 'ord', v: number | null | '') => {
+  const setField = (id: string, field: 'inv' | 'ord', q: UnitQty) => {
     markDirty();
     setLines((prev) => {
       const next = { ...prev };
       const ln: LineValue = { ...(next[id] || {}) };
-      if (field === 'inv') { if (v === '') delete ln.inv; else ln.inv = v as number; }
-      else { if (v === null || v === '') delete ln.ord; else ln.ord = v as number; }
-      if (Object.keys(ln).length === 0) delete next[id]; else next[id] = ln;
+      if (hasQty(q)) ln[field] = q; else delete ln[field];
+      if (!hasQty(ln.inv) && !hasQty(ln.ord)) delete next[id]; else next[id] = ln;
       return next;
     });
   };
@@ -231,7 +276,7 @@ export function Tracking({
       const clean: Lines = {};
       for (const k in lines) {
         const l = lines[k];
-        if (has(l.inv) || has(l.ord)) clean[k] = l;
+        if (hasQty(l.inv) || hasQty(l.ord)) clean[k] = l;
       }
       Promise.resolve(
         onSaveRef.current({ lines: clean, note, dateMs: new Date(date + 'T12:00:00').getTime() }),
@@ -277,12 +322,12 @@ export function Tracking({
             <div className="card"><Empty icon="truck" title="Nothing to order yet" body="Set an order quantity on any item and it’ll show up here." action={<Button variant="secondary" onClick={() => setFilter('all')}>Show all items</Button>} /></div>
           )}
           {categories.map((c) => {
-            const ordSet = (i: TrackItemVM) => has(lines[i.id]?.ord);
+            const ordSet = (i: TrackItemVM) => hasQty(lines[i.id]?.ord);
             let visItems = filter === 'order' ? c.items.filter(ordSet) : c.items;
             if (q) visItems = visItems.filter((i) => i.name.toLowerCase().includes(q));
             if (visItems.length === 0) return null;
             const isCol = q ? false : filter === 'order' ? false : collapsed.has(c.id);
-            const cCounted = c.items.filter((i) => has(lines[i.id]?.inv)).length;
+            const cCounted = c.items.filter((i) => hasQty(lines[i.id]?.inv)).length;
             const cOrder = c.items.filter(ordSet).length;
             const done = cCounted === c.items.length;
             return (
