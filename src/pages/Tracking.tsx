@@ -148,7 +148,7 @@ function TrkRow({
         </button>
       </div>
       {activeField && (
-        <CellEditor item={item} field={activeField}
+        <CellEditor key={activeField} item={item} field={activeField}
           value={activeField === 'inv' ? inv : ord}
           recents={activeField === 'inv' ? recentInv : recentOrd}
           onChange={(v) => (activeField === 'inv' ? setInv(v as number | '') : setOrd(v as number | null))}
