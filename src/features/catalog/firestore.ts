@@ -4,7 +4,7 @@
 // write helpers below are called by CatalogContainer. Signatures are fixed —
 // fill the bodies with addDoc/updateDoc/writeBatch/onSnapshot.
 import type { AppDispatch } from '../../app/store';
-import type { Category, Item, Unit } from './types';
+import type { Category, Item } from './types';
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, orderBy, query, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { categoriesReceived, itemsReceived } from './catalogSlice';
@@ -63,11 +63,10 @@ export const moveCategory = async (rid: string, id: string, dir: -1 | 1): Promis
   await batch.commit();
 }
 
-export const addItem = async (rid: string, input: { categoryId: string; name: string; unit: Unit; order: number }): Promise<void> => {
+export const addItem = async (rid: string, input: { categoryId: string; name: string; order: number }): Promise<void> => {
   await addDoc(itemsCol(rid), {
     name: input.name,
     category: input.categoryId,
-    unit: input.unit,
     disabled: false,
     order: input.order,
   })
@@ -78,7 +77,7 @@ export const addItem = async (rid: string, input: { categoryId: string; name: st
 export const updateItem = (
   rid: string,
   id: string,
-  patch: { name: string; category: string; unit: Unit; disabled: boolean; order?: number },
+  patch: { name: string; category: string; disabled: boolean; order?: number },
 ): Promise<void> => updateDoc(doc(itemsCol(rid), id), patch);
 
 export const deleteItem = (rid: string, id: string): Promise<void> => deleteDoc(doc(itemsCol(rid), id));

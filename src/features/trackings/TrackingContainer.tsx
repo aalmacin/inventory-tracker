@@ -4,16 +4,19 @@ import { Tracking, type Lines } from '../../pages/Tracking';
 import { useAppSelector } from '../../lib/hooks';
 import * as fs from './firestore';
 import type { TrackingLine } from './types';
+import { hasQty, qtyKey, type UnitQty } from '../../lib/units';
 
-// recently-used values for an item, newest-first, deduped
+// recently-used per-unit breakdowns for an item, newest-first, deduped by key
 function makeRecent(list: { lines: Record<string, TrackingLine> }[], field: 'inv' | 'ord') {
-  return (itemId: string): number[] => {
-    const seen = new Set<number>();
-    const out: number[] = [];
+  return (itemId: string): UnitQty[] => {
+    const seen = new Set<string>();
+    const out: UnitQty[] = [];
     for (const t of list) {
       const v = t.lines[itemId]?.[field];
-      if (v === null || v === undefined || seen.has(v)) continue;
-      seen.add(v);
+      if (!hasQty(v)) continue;
+      const key = qtyKey(v);
+      if (seen.has(key)) continue;
+      seen.add(key);
       out.push(v);
       if (out.length >= 6) break;
     }
@@ -50,7 +53,7 @@ export function TrackingContainer() {
           items: items
             .filter((i) => i.category === c.id && !i.disabled)
             .sort((a, b) => a.order - b.order)
-            .map((i) => ({ id: i.id, name: i.name, unit: i.unit })),
+            .map((i) => ({ id: i.id, name: i.name })),
         }))
         .filter((c) => c.items.length),
     [cats, items],

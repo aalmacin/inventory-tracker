@@ -25,7 +25,7 @@ export function CatalogContainer() {
           items: items
             .filter((i) => i.category === c.id)
             .sort((a, b) => a.order - b.order)
-            .map((i) => ({ id: i.id, name: i.name, unit: i.unit, disabled: i.disabled })),
+            .map((i) => ({ id: i.id, name: i.name, disabled: i.disabled })),
         })),
     [cats, items],
   );
