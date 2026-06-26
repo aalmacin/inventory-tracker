@@ -5,7 +5,7 @@
 // existing lines (for edit), and recentInv/recentOrd lookups derived from this
 // restaurant's past trackings (Redux/Firestore). onSave receives the cleaned
 // lines + note + date; you persist them to restaurants/{rid}/trackings.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../ui/Icon';
 import { Button, Empty, FlowHeader } from '../ui/primitives';
 
@@ -47,7 +47,7 @@ function CellEditor({
     <div className="celled">
       <div className="celled__head">
         <div className="celled__title">{isInv ? 'Inventory' : 'Order'} <span>· {item.name}</span></div>
-        <button className="icon-btn" style={{ width: 30, height: 30 }} onClick={onClose} aria-label="done"><Icon name="check" size={18} strokeWidth={2.4} /></button>
+        <button className="icon-btn" style={{ width: 30, height: 30 }} onClick={onClose} aria-label="close"><Icon name="x" size={18} strokeWidth={2.4} /></button>
       </div>
 
       <div className="celled__row">
@@ -129,7 +129,7 @@ export function Tracking({
   initialDateMs?: number;
   recentInv: (itemId: string) => number[];
   recentOrd: (itemId: string) => number[];
-  onSave: (out: { lines: Lines; note: string; dateMs: number }) => void;
+  onSave: (out: { lines: Lines; note: string; dateMs: number }) => void | Promise<void>;
   onCancel: () => void;
 }) {
   const [lines, setLines] = useState<Lines>(() => JSON.parse(JSON.stringify(initialLines)));
@@ -149,7 +149,8 @@ export function Tracking({
   const countedN = allItems.filter((i) => has(lines[i.id]?.inv)).length;
   const orderN = allItems.filter((i) => has(lines[i.id]?.ord)).length;
 
-  const setField = (id: string, field: 'inv' | 'ord', v: number | null | '') =>
+  const setField = (id: string, field: 'inv' | 'ord', v: number | null | '') => {
+    markDirty();
     setLines((prev) => {
       const next = { ...prev };
       const ln: LineValue = { ...(next[id] || {}) };
@@ -158,6 +159,7 @@ export function Tracking({
       if (Object.keys(ln).length === 0) delete next[id]; else next[id] = ln;
       return next;
     });
+  };
 
   const toggleCat = (id: string) =>
     setCollapsed((prev) => {
@@ -170,14 +172,33 @@ export function Tracking({
       return n;
     });
 
-  const save = () => {
-    const clean: Lines = {};
-    for (const k in lines) {
-      const l = lines[k];
-      if (has(l.inv) || has(l.ord)) clean[k] = l;
-    }
-    onSave({ lines: clean, note, dateMs: new Date(date + 'T12:00:00').getTime() });
-  };
+  // ── autosave: debounced persist on every edit ────────────────
+  // New trackings are not created until the first value is entered, so we never
+  // write empty docs. Once a value exists, edits flush ~800ms after typing stops.
+  // 'saving' is set by the edit handlers (markDirty); the effect only performs
+  // the debounced write and flips to 'saved' when it lands.
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const markDirty = () => setSaveStatus('saving');
+  const onSaveRef = useRef(onSave);
+  useEffect(() => { onSaveRef.current = onSave; });
+  const firstRun = useRef(true);
+
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
+    // hold off until the new tracking has at least one value to persist
+    if (mode === 'new' && countedN === 0 && orderN === 0) return;
+    const tid = setTimeout(() => {
+      const clean: Lines = {};
+      for (const k in lines) {
+        const l = lines[k];
+        if (has(l.inv) || has(l.ord)) clean[k] = l;
+      }
+      Promise.resolve(
+        onSaveRef.current({ lines: clean, note, dateMs: new Date(date + 'T12:00:00').getTime() }),
+      ).then(() => setSaveStatus('saved'));
+    }, 800);
+    return () => clearTimeout(tid);
+  }, [lines, note, date, mode, countedN, orderN]);
 
   return (
     <div className="it-app screen">
@@ -186,7 +207,7 @@ export function Tracking({
       <div style={{ flexShrink: 0, background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '2px 16px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 11 }}>
           <span style={{ color: 'var(--ink-3)' }}><Icon name="calendar" size={17} /></span>
-          <input type="date" className="input" style={{ height: 40, width: 'auto', flex: 1, fontSize: 15 }} value={date} onChange={(e) => setDate(e.target.value)} />
+          <input type="date" className="input" style={{ height: 40, width: 'auto', flex: 1, fontSize: 15 }} value={date} onChange={(e) => { markDirty(); setDate(e.target.value); }} />
         </div>
         <div style={{ display: 'flex', gap: 16 }}>
           <div style={{ flex: 1 }}>
@@ -252,16 +273,22 @@ export function Tracking({
 
           <div className="field" style={{ marginTop: 2 }}>
             <label className="label">Other notes <span className="muted-2" style={{ fontWeight: 500 }}>· optional</span></label>
-            <input className="input" value={note} placeholder="e.g. weekend prep, delivery Tuesday" onChange={(e) => setNote(e.target.value)} />
+            <input className="input" value={note} placeholder="e.g. weekend prep, delivery Tuesday" onChange={(e) => { markDirty(); setNote(e.target.value); }} />
           </div>
           <div style={{ height: 8 }} />
         </div>
       </div>
 
       <div className="actionbar">
-        <Button variant="primary" block icon="check" disabled={countedN === 0 && orderN === 0} onClick={save}>
-          {mode === 'edit' ? 'Save changes' : 'Save tracking'}{countedN + orderN > 0 ? ` · ${countedN} counted` : ''}
-        </Button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44, color: 'var(--ink-3)', fontSize: 14, fontWeight: 600 }}>
+          {saveStatus === 'saving' ? (
+            <><Icon name="clock" size={16} /> Saving…</>
+          ) : saveStatus === 'saved' ? (
+            <><span style={{ color: 'var(--accent)', display: 'flex' }}><Icon name="checkCircle" size={16} strokeWidth={2.2} /></span> All changes saved{countedN > 0 ? ` · ${countedN} counted` : ''}</>
+          ) : (
+            <>Changes save automatically</>
+          )}
+        </div>
       </div>
     </div>
   );
