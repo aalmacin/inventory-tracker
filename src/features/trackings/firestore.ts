@@ -78,7 +78,13 @@ export const setDelivery = (
   dlv: DeliveryCheck | null,
 ): Promise<void> => updateDoc(doc(trackingsCol(rid), trackingId), {
   [`lines.${itemId}.dlv`]:
-    dlv === null ? deleteField() : { ok: dlv.ok, note: dlv.note, ...(dlv.arrived !== undefined ? { arrived: roundQtyBreakdown(dlv.arrived) } : {}) },
+    dlv === null
+      ? deleteField()
+      : {
+          ok: dlv.ok,
+          ...(dlv.note != null ? { note: dlv.note } : {}),
+          ...(dlv.arrived !== undefined ? { arrived: roundQtyBreakdown(dlv.arrived) } : {}),
+        },
 });
 
 export const deleteTracking = (rid: string, id: string): Promise<void> =>
