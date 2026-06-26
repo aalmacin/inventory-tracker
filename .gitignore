@@ -28,3 +28,6 @@ emulator-data
 *.sln
 *.sw?
 scripts/seed-edo-*
+
+# brainstorming visual companion
+.superpowers/

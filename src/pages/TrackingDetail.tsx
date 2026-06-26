@@ -8,6 +8,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../ui/Icon';
 import { Button, Empty, FlowHeader, SheetModal } from '../ui/primitives';
+import { formatQty } from '../lib/quantity';
 
 export interface DeliveryCheck { ok: boolean; arrived?: number; note?: string; }
 export interface DetailRowVM {
@@ -28,7 +29,7 @@ export interface TrackingDetailVM {
 }
 
 const has = (v: unknown) => v !== undefined && v !== null && v !== '';
-const fmtNum = (n: number | null) => (n === null ? '–' : Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100));
+const fmtNum = (n: number | null) => (n === null ? '–' : formatQty(n));
 const fmtDate = (ms: number) => new Date(ms).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 const fmtDateLong = (ms: number) => new Date(ms).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 function relTime(ms: number) {
@@ -191,7 +192,7 @@ export function TrackingDetail({
       const rows = c.rows.filter((r) => has(r.ord));
       if (!rows.length) return;
       out += `\n${c.label}\n`;
-      rows.forEach((r) => { out += `  • ${r.name} ×${r.ord}\n`; });
+      rows.forEach((r) => { out += `  • ${r.name} ×${r.ord === null ? '' : formatQty(r.ord)}\n`; });
     });
     if (navigator.clipboard) navigator.clipboard.writeText(out.trim()).catch(() => {});
     setCopied(true);
