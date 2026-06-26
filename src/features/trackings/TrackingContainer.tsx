@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Tracking, type Lines } from '../../pages/Tracking';
 import { useAppSelector } from '../../lib/hooks';
@@ -35,6 +35,11 @@ export function TrackingContainer() {
   const list = useAppSelector((s) => s.trackings.list);
   const existing = id ? list.find((t) => t.id === id) : undefined;
 
+  // For new trackings, the doc is created on the first autosave; we hold its id
+  // here so later saves update the same doc instead of creating duplicates.
+  const createdId = useRef<string | null>(null);
+  const createInFlight = useRef<Promise<string> | null>(null);
+
   const categories = useMemo(
     () =>
       [...cats]
@@ -63,15 +68,28 @@ export function TrackingContainer() {
       recentInv={makeRecent(list, 'inv')}
       recentOrd={makeRecent(list, 'ord')}
       onSave={async (out) => {
-        if (id) {
-          await fs.updateTracking(rid, id, out);
-          nav(`/track/${id}`, { replace: true });
-        } else {
-          const newId = await fs.createTracking(rid, by, out);
-          nav(`/track/${newId}`, { replace: true });
+        const targetId = id ?? createdId.current;
+        if (targetId) {
+          await fs.updateTracking(rid, targetId, out);
+          return;
         }
+        // first autosave for a new tracking — create once, guarding against
+        // concurrent saves racing to create duplicate docs
+        if (!createInFlight.current) {
+          createInFlight.current = fs.createTracking(rid, by, out).then((newId) => {
+            createdId.current = newId;
+            return newId;
+          });
+          await createInFlight.current;
+          return;
+        }
+        const newId = await createInFlight.current;
+        await fs.updateTracking(rid, newId, out);
       }}
-      onCancel={() => nav(id ? `/track/${id}` : '/home', { replace: true })}
+      onCancel={() => {
+        const targetId = id ?? createdId.current;
+        nav(targetId ? `/track/${targetId}` : '/home', { replace: true });
+      }}
     />
   );
 }
