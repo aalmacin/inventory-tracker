@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../ui/Icon';
 import { Button, Empty, FlowHeader } from '../ui/primitives';
+import { FRACTIONS, formatQty, parseFraction, roundQty } from '../lib/quantity';
 
 export type LineValue = { inv?: number | ''; ord?: number | null };
 export type Lines = Record<string, LineValue>;
@@ -16,9 +17,14 @@ export interface TrackItemVM { id: string; name: string; unit: string; }
 export interface TrackCategoryVM { id: string; label: string; items: TrackItemVM[]; }
 
 const has = (v: unknown) => v !== undefined && v !== null && v !== '';
-const fmtNum = (n: number) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100));
+
+// quick-pick fractions shown as chips (custom covers ⅓/⅔ and anything else)
+const CHIPS = FRACTIONS.filter((f) => f.value === 0.25 || f.value === 0.5 || f.value === 0.75);
 
 // ── inline cell editor ───────────────────────────────────────
+// Quantity is entered as a whole number + a fraction (½ ¼ ¾ or custom n/d).
+// Decimals never appear in the UI — the value is combined to a decimal only on
+// the way to storage.
 function CellEditor({
   item, field, value, recents, onChange, onClose,
 }: {
@@ -30,18 +36,29 @@ function CellEditor({
   onClose: () => void;
 }) {
   const isInv = field === 'inv';
-  const cur = has(value) ? String(value) : '';
-  const [txt, setTxt] = useState(cur);
+  const init = has(value) && typeof value === 'number' ? (value as number) : null;
+  const [whole, setWhole] = useState<string>(init !== null ? String(Math.floor(init)) : '');
+  const [frac, setFrac] = useState<number>(init !== null ? roundQty(init - Math.floor(init)) : 0);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [num, setNum] = useState('1');
+  const [den, setDen] = useState('3');
 
-  const commit = (raw: string) => {
-    const clean = raw.replace(/[^0-9.]/g, '');
-    setTxt(clean);
-    onChange(clean === '' ? (isInv ? '' : null) : +clean);
+  const emit = (w: string, f: number) => {
+    if (w === '' && f === 0) { onChange(isInv ? '' : null); return; }
+    onChange(roundQty((parseInt(w, 10) || 0) + f));
   };
-  const step = (d: number) => {
-    const base = txt === '' ? 0 : +txt || 0;
-    commit(String(Math.max(0, base + d)));
+  const setW = (raw: string) => { const c = raw.replace(/[^0-9]/g, ''); setWhole(c); emit(c, frac); };
+  const setF = (f: number) => { setFrac(f); if (f === 0) setCustomOpen(false); emit(whole, f); };
+  const step = (d: number) => setW(String(Math.max(0, (parseInt(whole, 10) || 0) + d)));
+  const applyCustom = () => {
+    const v = parseFraction(parseInt(num, 10), parseInt(den, 10));
+    if (v === null || v < 0) return;
+    const w = (parseInt(whole, 10) || 0) + Math.floor(v);
+    const f = roundQty(v - Math.floor(v));
+    setWhole(String(w)); setFrac(f); setCustomOpen(false); emit(String(w), f);
   };
+  const fracGlyph = frac > 0 ? (FRACTIONS.find((x) => Math.abs(x.value - frac) < 0.02)?.glyph ?? formatQty(frac)) : '';
+  const totalGlyph = whole === '' && frac === 0 ? (isInv ? '—' : 'X') : formatQty((parseInt(whole, 10) || 0) + frac);
 
   return (
     <div className="celled">
@@ -53,23 +70,46 @@ function CellEditor({
       <div className="celled__row">
         <div className="bignum">
           <button className="bignum__btn" onClick={() => step(-1)} aria-label="minus"><Icon name="minus" size={20} /></button>
-          <input autoFocus className="bignum__val" inputMode="decimal" value={txt} placeholder={isInv ? '0' : 'X'}
-            onChange={(e) => commit(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') onClose(); }} />
+          <input autoFocus className="bignum__val" inputMode="numeric" value={whole} placeholder="0"
+            onChange={(e) => setW(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') onClose(); }} />
           <button className="bignum__btn" onClick={() => step(1)} aria-label="plus"><Icon name="plus" size={20} /></button>
+        </div>
+        <div className="fracbox" aria-label="fraction">
+          <span className="fracbox__lbl">Fraction</span>
+          <span className={`fracbox__val ${frac === 0 ? 'is-none' : ''}`}>{frac > 0 ? fracGlyph : 'none'}</span>
         </div>
         {isInv
           ? <button className="recchip recchip--x" onClick={() => { onChange(''); onClose(); }}>Clear</button>
           : <button className="recchip recchip--x" onClick={() => { onChange(null); onClose(); }}><Icon name="x" size={13} /> No order</button>}
       </div>
 
+      <div className="celled__total">Total: <b>{totalGlyph}</b></div>
+
+      <div className="fracchips">
+        <button className={`recchip ${frac === 0 ? 'recchip--on' : ''}`} onClick={() => setF(0)}>None</button>
+        {CHIPS.map((c) => (
+          <button key={c.glyph} className={`recchip ${Math.abs(frac - c.value) < 0.02 ? 'recchip--on' : ''}`} onClick={() => setF(c.value)}>{c.glyph}</button>
+        ))}
+        <button className={`recchip ${customOpen ? 'recchip--on' : ''}`} onClick={() => setCustomOpen((o) => !o)}>Custom</button>
+      </div>
+
+      {customOpen && (
+        <div className="fraccustom">
+          <input className="input fraccustom__n" inputMode="numeric" value={num} onChange={(e) => setNum(e.target.value.replace(/[^0-9]/g, ''))} aria-label="numerator" />
+          <span className="fraccustom__slash">/</span>
+          <input className="input fraccustom__n" inputMode="numeric" value={den} onChange={(e) => setDen(e.target.value.replace(/[^0-9]/g, ''))} aria-label="denominator" />
+          <button className="recchip recchip--on" onClick={applyCustom}>Apply</button>
+        </div>
+      )}
+
       <div className="recents">
         <div className="recents__lbl">{recents.length ? 'Recently used' : 'No history yet'}</div>
         {recents.length > 0 ? (
           <div className="recchips">
-            {recents.map((v) => <button key={v} className="recchip" onClick={() => { onChange(v); onClose(); }}>{v}</button>)}
+            {recents.map((v) => <button key={v} className="recchip" onClick={() => { onChange(v); onClose(); }}>{formatQty(v)}</button>)}
           </div>
         ) : (
-          <div className="recchip--none">First time counting this item — type a value above.</div>
+          <div className="recchip--none">First time counting this item — enter a value above.</div>
         )}
       </div>
     </div>
@@ -100,11 +140,11 @@ function TrkRow({
         </div>
         <button className={`cell cell--inv ${has(inv) ? 'cell--has' : ''} ${activeField === 'inv' ? 'cell--active' : ''}`}
           onClick={() => (activeField === 'inv' ? onClose() : onActivate('inv'))}>
-          {has(inv) ? fmtNum(inv as number) : '–'}
+          {has(inv) ? formatQty(inv as number) : '–'}
         </button>
         <button className={`cell cell--ord ${has(ord) ? 'cell--has' : 'cell--x'} ${activeField === 'ord' ? 'cell--active' : ''}`}
           onClick={() => (activeField === 'ord' ? onClose() : onActivate('ord'))}>
-          {has(ord) ? fmtNum(ord as number) : 'X'}
+          {has(ord) ? formatQty(ord as number) : 'X'}
         </button>
       </div>
       {activeField && (

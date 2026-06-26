@@ -7,6 +7,10 @@ import type { DeliveryCheck, Tracking, TrackingLine } from './types';
 import { trackingsReceived } from './trackingsSlice';
 import { addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { roundQty } from '../../lib/quantity';
+
+// Fractions are entered in the UI but persisted as rounded decimals (0.75, not 0.7533).
+const round = (n: number | null): number | null => (n === null ? null : roundQty(n));
 
 const trackingsCol = (rid: string) => collection(db, 'restaurants', rid, 'trackings');
 
@@ -25,7 +29,7 @@ const toStored = (lines: Lines): Record<string, TrackingLine> =>
   Object.fromEntries(
     Object.entries(lines).map(([id, l]) => [
       id,
-      { inv: l.inv === '' || l.inv === undefined ? null : l.inv, ord: l.ord ?? null },
+      { inv: round(l.inv === '' || l.inv === undefined ? null : l.inv), ord: round(l.ord ?? null) },
     ]),
   );
 
@@ -61,7 +65,8 @@ export const setDelivery = (
   itemId: string,
   dlv: DeliveryCheck | null,
 ): Promise<void> => updateDoc(doc(trackingsCol(rid), trackingId), {
-  [`lines.${itemId}.dlv`]: dlv === null ? deleteField() : dlv,
+  [`lines.${itemId}.dlv`]:
+    dlv === null ? deleteField() : { ...dlv, ...(dlv.arrived !== undefined ? { arrived: roundQty(dlv.arrived) } : {}) },
 });
 
 export const deleteTracking = (rid: string, id: string): Promise<void> =>

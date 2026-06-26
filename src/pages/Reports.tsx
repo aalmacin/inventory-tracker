@@ -8,6 +8,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Icon } from '../ui/Icon';
 import { Button, Empty } from '../ui/primitives';
+import { formatQty } from '../lib/quantity';
 
 export interface ReportItem { id: string; name: string; }
 export interface ReportCategory { id: string; label: string; items: ReportItem[]; }
@@ -15,7 +16,7 @@ export interface ReportLine { inv?: number | null; ord?: number | null; }
 export interface ReportTracking { id: string; dateMs: number; lines: Record<string, ReportLine>; }
 
 const has = (v: unknown): v is number => v !== undefined && v !== null && (v as number) !== ('' as unknown);
-const fmtNum = (n: number) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100));
+const fmtNum = (n: number) => formatQty(n);
 
 type Metric = 'inv' | 'ord';
 const METRIC: Record<Metric, { label: string; accent: string }> = {
