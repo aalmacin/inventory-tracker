@@ -54,7 +54,7 @@ function DeliveryCell({ row, active, onClick }: { row: DetailRowVM; active: bool
   const d = row.dlv;
   let cls = 'cell--dlv-todo';
   let content: ReactNode = <Icon name="box" size={16} />;
-  if (d?.ok) { cls = 'cell--dlv-ok'; content = <Icon name="check" size={17} strokeWidth={2.6} />; }
+  if (d?.ok) { cls = 'cell--dlv-ok'; content = fmtNum(row.ord); }
   else if (d && !d.ok) { cls = 'cell--dlv-bad'; content = fmtNum(d.arrived ?? 0); }
   return <button className={`cell cell--dlv ${cls} ${active ? 'cell--active' : ''}`} onClick={onClick} aria-label="delivery check">{content}</button>;
 }
@@ -80,7 +80,6 @@ function DeliveryEditor({ row, onSave, onClose }: { row: DetailRowVM; onSave: (d
         <div className="celled__title">Product check <span>· {row.name}</span></div>
         <div style={{ display: 'flex', gap: 6 }}>
           {row.dlv && <button className="recchip recchip--x" style={{ height: 30 }} onClick={() => { onSave(null); onClose(); }}>Reset</button>}
-          <button className="icon-btn" style={{ width: 30, height: 30 }} onClick={onClose} aria-label="done"><Icon name="check" size={18} strokeWidth={2.4} /></button>
         </div>
       </div>
 
@@ -143,7 +142,7 @@ function PrintSheet({ t, onlyOrder, onClose }: { t: TrackingDetailVM; onlyOrder:
           {cats.map((c) => (
             <div key={c.id} className="psheet__cat">
               <table className="ptable">
-                <thead><tr><th>{c.label}</th><th className="n">INV</th><th className="n">ORD</th><th className="n">GOT</th></tr></thead>
+                <thead><tr><th>{c.label}</th><th className="n">INV</th><th className="n">ORD</th><th className="n">RCV</th></tr></thead>
                 <tbody>
                   {c.rows.map((r) => {
                     const d = r.dlv;
@@ -151,7 +150,7 @@ function PrintSheet({ t, onlyOrder, onClose }: { t: TrackingDetailVM; onlyOrder:
                     let gotCls = 'n';
                     if (!has(r.ord)) got = '';
                     else if (!d) { got = '–'; gotCls = 'n x'; }
-                    else if (d.ok) got = '✓';
+                    else if (d.ok) got = fmtNum(r.ord);
                     else { got = fmtNum(d.arrived ?? 0); gotCls = 'n x'; }
                     return (
                       <tr key={r.itemId}>
@@ -263,7 +262,7 @@ export function TrackingDetail({
                   <span className="trk-cat__name">{c.label}</span>
                   <span className="trk-cat__count">{rows.length}</span>
                 </div>
-                <div className="trk-colhead trk-colhead--dlv"><span>Order List</span><span className="r">Inv</span><span className="r">Ord</span><span className="r">Got</span></div>
+                <div className="trk-colhead trk-colhead--dlv"><span>Order List</span><span className="r">Inv</span><span className="r">Ord</span><span className="r">Rcv</span></div>
                 {rows.map((r) => {
                   const open = activeDlv === r.itemId;
                   return (
