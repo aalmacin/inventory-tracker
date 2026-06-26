@@ -283,8 +283,6 @@ textarea.input { height: auto; min-height: 72px; padding: 11px 13px; line-height
 .dlv-comment-line { margin-top: 3px; font-size: 12px; line-height: 1.45; color: var(--ink-3); font-style: italic; overflow-wrap: anywhere; }
 .cell--dlv { padding: 0; }
 .cell--dlv-na { border-style: dashed; color: var(--ink-4); cursor: default; opacity: 0.5; }
-.cell--dlv-todo { border-style: dashed; border-color: var(--accent-line); color: var(--accent-text); }
-.cell--dlv-todo:hover { border-color: var(--accent); color: var(--accent-text); }
 .cell--dlv-ok { background: var(--ok-bg); border-color: var(--ok-line); color: var(--ok); font-size: 15px; font-weight: 600; }
 .cell--dlv-bad { background: var(--out-bg); border-color: var(--out-line); color: oklch(0.48 0.16 27); font-size: 15px; }
 .cell--dlv.cell--active { border-color: var(--accent) !important; box-shadow: 0 0 0 3px var(--accent-weak); }

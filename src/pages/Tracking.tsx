@@ -47,7 +47,7 @@ function CellEditor({
     <div className="celled">
       <div className="celled__head">
         <div className="celled__title">{isInv ? 'Inventory' : 'Order'} <span>· {item.name}</span></div>
-        <button className="icon-btn" style={{ width: 30, height: 30 }} onClick={onClose} aria-label="done"><Icon name="check" size={18} strokeWidth={2.4} /></button>
+        <button className="icon-btn" style={{ width: 30, height: 30 }} onClick={onClose} aria-label="close"><Icon name="x" size={18} strokeWidth={2.4} /></button>
       </div>
 
       <div className="celled__row">

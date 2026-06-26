@@ -52,54 +52,46 @@ function DeliverySub({ row }: { row: DetailRowVM }) {
 function DeliveryCell({ row, active, onClick }: { row: DetailRowVM; active: boolean; onClick: () => void }) {
   if (!has(row.ord)) return <div className="cell cell--dlv cell--dlv-na">·</div>;
   const d = row.dlv;
-  let cls = 'cell--dlv-todo';
-  let content: ReactNode = <Icon name="box" size={16} />;
-  if (d?.ok) { cls = 'cell--dlv-ok'; content = fmtNum(row.ord); }
-  else if (d && !d.ok) { cls = 'cell--dlv-bad'; content = fmtNum(d.arrived ?? 0); }
-  return <button className={`cell cell--dlv ${cls} ${active ? 'cell--active' : ''}`} onClick={onClick} aria-label="delivery check">{content}</button>;
+  const received = d ? (d.ok ? row.ord : (d.arrived ?? 0)) : null;
+  const matched = received === row.ord; // RCV matches ORD → green, otherwise red
+  const content: ReactNode = d ? fmtNum(received) : <Icon name="box" size={16} />;
+  return <button className={`cell cell--dlv ${matched ? 'cell--dlv-ok' : 'cell--dlv-bad'} ${active ? 'cell--active' : ''}`} onClick={onClick} aria-label="delivery check">{content}</button>;
 }
 
 function DeliveryEditor({ row, onSave, onClose }: { row: DetailRowVM; onSave: (d: DeliveryCheck | null) => void; onClose: () => void }) {
   const ord = row.ord ?? 0;
-  const [ok, setOk] = useState(row.dlv ? !!row.dlv.ok : true);
-  const [arrived, setArrived] = useState(() => (row.dlv && !row.dlv.ok && row.dlv.arrived != null ? String(row.dlv.arrived) : String(Math.max(0, ord - 1))));
+  // Default to a full delivery (arrived === ord); short deliveries are entered by reducing the number.
+  const [arrived, setArrived] = useState(() => (row.dlv && !row.dlv.ok && row.dlv.arrived != null ? String(row.dlv.arrived) : String(ord)));
   const [note, setNote] = useState(row.dlv?.note ?? '');
 
-  const persist = (next: { ok: boolean; arrived: string; note: string }) => {
-    if (next.ok) onSave({ ok: true, note: next.note.trim() });
-    else onSave({ ok: false, arrived: next.arrived === '' ? 0 : +next.arrived, note: next.note.trim() });
+  const persist = (next: { arrived: string; note: string }) => {
+    const n = next.arrived === '' ? 0 : +next.arrived;
+    if (n >= ord) onSave({ ok: true, note: next.note.trim() });
+    else onSave({ ok: false, arrived: n, note: next.note.trim() });
   };
-  const setOkAndSave = (v: boolean) => { setOk(v); persist({ ok: v, arrived, note }); };
-  const setArrivedAndSave = (raw: string) => { const c = raw.replace(/[^0-9.]/g, ''); setArrived(c); persist({ ok: false, arrived: c, note }); };
+  const setArrivedAndSave = (raw: string) => { const c = raw.replace(/[^0-9.]/g, ''); setArrived(c); persist({ arrived: c, note }); };
   const step = (d: number) => { const base = arrived === '' ? 0 : +arrived || 0; setArrivedAndSave(String(Math.max(0, base + d))); };
-  const setNoteAndSave = (v: string) => { setNote(v); persist({ ok, arrived, note: v }); };
+  const setNoteAndSave = (v: string) => { setNote(v); persist({ arrived, note: v }); };
 
   return (
     <div className="celled">
       <div className="celled__head">
         <div className="celled__title">Product check <span>· {row.name}</span></div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {row.dlv && <button className="recchip recchip--x" style={{ height: 30 }} onClick={() => { onSave(null); onClose(); }}>Reset</button>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          {row.dlv && <button className="btn btn--sm btn--danger" style={{ background: 'var(--out-bg)' }} onClick={() => { onSave(null); onClose(); }}>Did not arrive yet</button>}
+          <button className="icon-btn" style={{ width: 30, height: 30 }} onClick={onClose} aria-label="collapse"><Icon name="x" size={18} strokeWidth={2.4} /></button>
         </div>
       </div>
 
-      <button type="button" className="dlv-check" onClick={() => setOkAndSave(!ok)}>
-        <span className={`dlv-check__box ${ok ? 'is-on' : ''}`}>{ok && <Icon name="check" size={15} strokeWidth={2.8} />}</span>
-        <span className="dlv-check__body"><span className="dlv-check__title">Arrived as ordered</span></span>
-      </button>
-      {ok && <div className="dlv-check__note">All {fmtNum(ord)} received</div>}
-
-      {!ok && (
-        <div className="dlv-arrived">
-          <span className="dlv-arrived__lbl">How many arrived?</span>
-          <div className="bignum" style={{ height: 42 }}>
-            <button className="bignum__btn" style={{ width: 42 }} onClick={() => step(-1)} aria-label="minus"><Icon name="minus" size={18} /></button>
-            <input className="bignum__val" style={{ fontSize: 18 }} inputMode="decimal" value={arrived} placeholder="0" onChange={(e) => setArrivedAndSave(e.target.value)} />
-            <button className="bignum__btn" style={{ width: 42 }} onClick={() => step(1)} aria-label="plus"><Icon name="plus" size={18} /></button>
-          </div>
-          <span className="mono muted-2" style={{ fontSize: 12, flexShrink: 0 }}>of {fmtNum(ord)}</span>
+      <div className="dlv-arrived">
+        <span className="dlv-arrived__lbl">How many arrived?</span>
+        <div className="bignum" style={{ height: 42 }}>
+          <button className="bignum__btn" style={{ width: 42 }} onClick={() => step(-1)} aria-label="minus"><Icon name="minus" size={18} /></button>
+          <input className="bignum__val" style={{ fontSize: 18 }} inputMode="decimal" value={arrived} placeholder="0" onChange={(e) => setArrivedAndSave(e.target.value)} />
+          <button className="bignum__btn" style={{ width: 42 }} onClick={() => step(1)} aria-label="plus"><Icon name="plus" size={18} /></button>
         </div>
-      )}
+        <span className="mono muted-2" style={{ fontSize: 12, flexShrink: 0 }}>of {fmtNum(ord)}</span>
+      </div>
 
       <div className="dlv-cmt">
         <div className="dlv-cmt__lbl">Comment · quality &amp; condition</div>
@@ -276,7 +268,13 @@ export function TrackingDetail({
                         </div>
                         <div className={`cell cell--inv ${has(r.inv) ? 'cell--has' : ''}`} style={{ cursor: 'default' }}>{has(r.inv) ? fmtNum(r.inv) : '–'}</div>
                         <div className={`cell cell--ord ${has(r.ord) ? 'cell--has' : 'cell--x'}`} style={{ cursor: 'default' }}>{has(r.ord) ? fmtNum(r.ord) : 'X'}</div>
-                        <DeliveryCell row={r} active={open} onClick={() => has(r.ord) && setActiveDlv(open ? null : r.itemId)} />
+                        <DeliveryCell row={r} active={open} onClick={() => {
+                          if (!has(r.ord)) return;
+                          if (open) { setActiveDlv(null); return; }
+                          // first open defaults to a full delivery (arrived === ord)
+                          if (!r.dlv) onSetDelivery(r.itemId, { ok: true });
+                          setActiveDlv(r.itemId);
+                        }} />
                       </div>
                       {open && has(r.ord) && (
                         <DeliveryEditor row={r} onSave={(d) => onSetDelivery(r.itemId, d)} onClose={() => setActiveDlv(null)} />
