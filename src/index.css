@@ -7,9 +7,9 @@
   --border:#e4e4e0; --border-2:#d6d6d0; --border-3:#c4c4bd;
   --ink:#1a1a18; --ink-2:#56564f; --ink-3:#87877e; --ink-4:#a8a89e;
 
-  /* teal primary action */
-  --accent:oklch(0.52 0.083 194); --accent-press:oklch(0.46 0.083 194); --accent-ink:#ffffff;
-  --accent-weak:oklch(0.96 0.022 194); --accent-line:oklch(0.88 0.04 194); --accent-text:oklch(0.46 0.083 194);
+  /* red primary action */
+  --accent:#e32029; --accent-press:oklch(0.52 0.20 26); --accent-ink:#ffffff;
+  --accent-weak:oklch(0.96 0.03 26); --accent-line:oklch(0.88 0.07 26); --accent-text:oklch(0.50 0.20 26);
 
   /* status: ok / low / out */
   --ok:oklch(0.56 0.12 152); --ok-bg:oklch(0.95 0.045 152); --ok-line:oklch(0.85 0.07 152);
